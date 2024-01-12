@@ -7,12 +7,13 @@ Un bot discord français créer par Nev0.
 ## Features
 
 - TweetFix & X-Fix (Tweet & X embed fixer)
-- TikTok embed fixer
 - Quoi-(feur)
 - V a toi (Quand copié collé raté)
+- Random "ta gueule"
 
 # Prochainement 
 - Commande Info
+- TikTok embed fixer
 
 
 ## 🔗 
