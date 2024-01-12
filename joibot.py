@@ -78,7 +78,14 @@ async def on_message(message):
                 await message.channel.send(f"{message.author.mention} - 𝕏 - {fixed_x_url}")
                 await message.delete()
     #TWEET-FIX ===================================
+    
+    # RANDOM TA GUEULE ===========================
+            
+    if random.uniform(0, 100) < 0.5:
+            await message.delete()
+            await message.channel.send(f"{message.author.mention}, Allez hop supprimer ta gueule bouffon")
 
+    # RANDOM TA GUEULE ===========================
 
 
 # Lancer le bot avec son token
