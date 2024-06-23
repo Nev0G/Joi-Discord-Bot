@@ -10,6 +10,8 @@ Un bot discord français créer par Nev0.
 - Quoi-(feur)
 - V a toi (Quand copié collé raté)
 - Random "ta gueule"
+- Alerte pédo
+- Commande harcélement
 
 # Prochainement 
 - Commande Info
