@@ -73,6 +73,8 @@ async def on_message(message):
         x_url_pattern = r"https://x\.com/\w+/status/\d+"
         x_urls = re.findall(x_url_pattern, message.content)
 
+        instagram_url_pattern = r"https://(?:www\.)?instagram\.com/(?:p|reel)/[\w-]+"
+
         for tweet_url in tweet_urls:
             if tweet_url in liens_envoyes:
                 await message.delete()
@@ -103,12 +105,24 @@ async def on_message(message):
                 )
                 await message.delete()
 
-    # RANDOM TA GUEULE ===========================
-    if random.uniform(0, 100) < 0.01:
-        await message.delete()
-        await message.channel.send(
-            f"{message.author.mention}, Allez hop supprimer ta gueule bouffon"
-        )
+    instagram_urls = re.findall(instagram_url_pattern, message.content)
+
+    for instagram_url in instagram_urls:
+        if instagram_url in liens_envoyes:
+            await message.delete()
+            await message.channel.send(f"{message.author.mention}, Tu t'es fait bouclé salope 🔃")
+        else:
+            fixed_instagram_url = re.sub(r"https://(?:www\.)?instagram\.com/", r"https://ddinstagram.com/", instagram_url)
+            liens_envoyes.add(instagram_url)
+            await message.channel.send(f"{message.author.mention} - 📸 - {fixed_instagram_url}")
+            await message.delete()
+
+        # RANDOM TA GUEULE ===========================
+            if random.uniform(0, 100) < 0.01:
+                await message.delete()
+                await message.channel.send(
+                    f"{message.author.mention}, Allez hop supprimer ta gueule bouffon"
+                )
 
     # RANDOM TA GUEULE ===========================
 
@@ -182,4 +196,4 @@ async def stop_harcelement(ctx, member: discord.Member):
 
 
 # Lancer le bot avec son token
-bot.run("TOKEN DISCORD")
+bot.run("TOKEN")
