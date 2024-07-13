@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "name": "BombDM",
+      "description": "Envoi un message choisis en DM via le bot",
+      "price": 300,
+      "type": "command"
+    },
+    {
+      "name": "Role Exclusif",
+      "description": "Acces à un role Discord exclusif de maxi bogoss.",
+      "price": 50000,
+      "type": "role",
+      "role_id": "1259251354967478324"
+    }
+  ]
+}
