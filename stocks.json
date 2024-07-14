@@ -1,22 +1,22 @@
 {
   "BTC": {
     "name": "Bitecoin",
-    "current_price": 17.44,
+    "current_price": 19.96,
     "volatility": 0.05
   },
   "GGL": {
     "name": "Analphabet Inc.",
-    "current_price": 149.54,
+    "current_price": 131.21,
     "volatility": 0.05
   },
   "ARA": {
     "name": "Arasaka Corp.",
-    "current_price": 570.14,
+    "current_price": 716.67,
     "volatility": 0.08
   },
   "NDA": {
     "name": "Nvid.IA",
-    "current_price": 16.05,
+    "current_price": 19.95,
     "volatility": 0.15
   }
 }

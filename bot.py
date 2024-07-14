@@ -50,6 +50,7 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
+
 async def main():
     await load_extensions()
     await bot.start("TOKEN")

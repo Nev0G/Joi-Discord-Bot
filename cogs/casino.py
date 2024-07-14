@@ -19,6 +19,56 @@ class Casino(commands.Cog):
         self.bounty_channels = []
         # self.post_bounty.start()  # Décommentez pour activer les bounties
 
+
+    @commands.command(name="casinohelp", aliases=["chelp"])
+    async def casino_help(self, ctx):
+        embed = discord.Embed(
+            title="🎰 Aide du Casino 🎰",
+            description="Liste des commandes disponibles dans le casino avec leurs paramètres:",
+            color=0xFFD700  # Couleur or
+        )
+        commands_list = [
+            ("🎰 Machine à sous", "j!slot <mise>", 
+             "• <mise>: Montant de points à parier (nombre positif)"),
+            
+            ("🃏 Blackjack", "j!blackjack <mise> ou j!bj <mise>", 
+             "• <mise>: Montant de points à parier (nombre positif)"),
+            
+            ("🎡 Roulette", "j!roulette <mise> <choix>", 
+             "• <mise>: Montant de points à parier (nombre positif)\n"
+             "• <choix>: rouge, noir, pair, impair, manque (1-18), passe (19-36), ou un nombre de 0 à 36"),
+            
+            ("⚔️ Duel", "j!duel @joueur <mise>", 
+             "• @joueur: Mention du joueur à défier\n"
+             "• <mise>: Montant de points à parier (nombre positif)"),
+            
+            ("💰 Points", "j!points [@joueur]", 
+             "• [@joueur]: (Optionnel) Mention du joueur dont vous voulez vérifier les points"),
+            
+            ("🏆 Classement", "j!leaderboard ou j!lb", 
+             "Aucun paramètre nécessaire"),
+            
+            ("💸 RSA", "j!rsa", 
+             "Aucun paramètre nécessaire (cooldown: 1 heure)"),
+            
+            ("🎁 Donner", "j!donner @joueur <montant>", 
+             "• @joueur: Mention du joueur à qui donner des points\n"
+             "• <montant>: Nombre de points à donner (nombre positif)"),
+            
+            ("🕵️ Vol", "j!vol @joueur <montant>", 
+             "• @joueur: Mention du joueur à voler\n"
+             "• <montant>: Nombre de points à essayer de voler (nombre positif)")
+        ]
+        for title, command, params in commands_list:
+            embed.add_field(
+                name=f"{title} - `{command}`", 
+                value=f"Paramètres:\n{params}", 
+                inline=False
+            )
+        embed.set_footer(text="Bonne chance et jouez de manière responsable!")
+        
+        await ctx.send(embed=embed)
+
     def load_user_data(self):
         try:
             with open(USER_DATA_FILE, "r") as f:
@@ -498,8 +548,82 @@ class Casino(commands.Cog):
             raise error
         
 
+    @commands.command(name="roulette")
+    @commands.cooldown(1, 30, commands.BucketType.user)
+    async def roulette(self, ctx, bet: float, choice: str):
+        user_id = ctx.author.id
+        user_points = self.get_user_points(user_id)
 
+        if bet <= 0:
+            await ctx.send(f"{ctx.author.mention} 🚫 Vous devez parier au moins 1 point.")
+            return
+
+        if user_points < bet:
+            await ctx.send(f"{ctx.author.mention} ❌ Vous n'avez pas assez de points pour ce pari.")
+            return
+
+        valid_choices = ['rouge', 'noir', 'pair', 'impair', 'manque', 'passe'] + [str(i) for i in range(37)]
+        if choice.lower() not in valid_choices:
+            await ctx.send(f"{ctx.author.mention} ❌ Choix invalide. Les options sont : rouge, noir, pair, impair, manque (1-18), passe (19-36), ou un nombre de 0 à 36.")
+            return
+
+        self.set_user_points(user_id, user_points - bet)
+
+        roulette_numbers = {
+            0: '🟩',
+            32: '🟥', 19: '🟥', 21: '🟥', 25: '🟥', 34: '🟥', 27: '🟥', 36: '🟥', 30: '🟥', 23: '🟥', 5: '🟥', 16: '🟥', 1: '🟥', 14: '🟥', 9: '🟥', 18: '🟥', 7: '🟥', 12: '🟥', 3: '🟥',
+            15: '⬛', 4: '⬛', 2: '⬛', 17: '⬛', 6: '⬛', 13: '⬛', 11: '⬛', 8: '⬛', 10: '⬛', 24: '⬛', 33: '⬛', 20: '⬛', 31: '⬛', 22: '⬛', 29: '⬛', 28: '⬛', 35: '⬛', 26: '⬛'
+        }
+
+        animation_message = await ctx.send("🎰 La roulette tourne...")
+        for _ in range(3):
+            for number, color in roulette_numbers.items():
+                await animation_message.edit(content=f"🎰 La roulette tourne... {color} {number}")
+                await asyncio.sleep(0.2)
+
+        result = random.randint(0, 36)
+        result_color = roulette_numbers[result]
+
+        await animation_message.edit(content=f"🎰 La roulette s'arrête sur... {result_color} {result}!")
+
+        won = False
+        if choice.lower() == 'rouge' and result_color == '🟥':
+            won = True
+        elif choice.lower() == 'noir' and result_color == '⬛':
+            won = True
+        elif choice.lower() == 'pair' and result != 0 and result % 2 == 0:
+            won = True
+        elif choice.lower() == 'impair' and result % 2 == 1:
+            won = True
+        elif choice.lower() == 'manque' and 1 <= result <= 18:
+            won = True
+        elif choice.lower() == 'passe' and 19 <= result <= 36:
+            won = True
+        elif choice == str(result):
+            won = True
+            bet *= 35  # Paiement spécial pour avoir deviné le bon numéro
+
+        if won:
+            winnings = bet * 2
+            self.set_user_points(user_id, user_points + winnings)
+            await ctx.send(f"🎉 Félicitations, {ctx.author.mention}! Vous avez gagné **{winnings}** points!")
+        else:
+            await ctx.send(f"😢 Désolé, {ctx.author.mention}. Vous avez perdu votre mise.")
+
+        new_balance = self.get_user_points(user_id)
+        await ctx.send(f"💰 Votre nouveau solde est de **{new_balance}** points.")
+
+    @roulette.error
+    async def roulette_error(self, ctx, error):
+        if isinstance(error, commands.BadArgument):
+            await ctx.send("Veuillez entrer un montant valide pour votre pari et un choix valide.")
+        elif isinstance(error, commands.CommandOnCooldown):
+            await ctx.send(f"Cette commande est en cooldown. Réessayez dans {error.retry_after:.2f} secondes.")
+        else:
+            await ctx.send(f"Une erreur est survenue : {error}")
+            raise error
 
 
 async def setup(bot):
     await bot.add_cog(Casino(bot))
+
