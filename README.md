@@ -8,15 +8,16 @@ Un bot discord français créer par Nev0.
 
 - TweetFix & X-Fix (Tweet & X embed fixer)
 - Instagram Embed Fix
+- TikTok Embed Fix
 - Quoi-(feur)
 - V a toi (Quand copié collé raté)
 - Random "ta gueule"
 - Alerte pédo
 - Commande harcélement
+- Commande Usurpation
 
 # Prochainement 
 - Commande Info
-- TikTok embed fixer
 
 
 ## 🔗 
