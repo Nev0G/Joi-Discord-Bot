@@ -1,6 +1,6 @@
 from discord.ext import commands
 import discord
-import yt_dlp
+from youtubesearchpython import VideosSearch
 
 class MusicCog(commands.Cog):
     def __init__(self, bot):
@@ -11,7 +11,7 @@ class MusicCog(commands.Cog):
         return ctx.channel.name.lower() == 'dj'
 
     @commands.command(name="play")
-    async def play(self, ctx, url):
+    async def play(self, ctx, *, query):
         if not ctx.message.author.voice:
             await ctx.send("Vous n'êtes pas connecté à un canal vocal.")
             return
@@ -23,33 +23,26 @@ class MusicCog(commands.Cog):
             await ctx.send(f"Erreur lors de la connexion au canal vocal: {str(e)}")
             return
 
-        ydl_opts = {
-            'format': 'bestaudio/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-        }
-
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                if 'entries' in info:
-                    # C'est une playlist, prenons le premier élément
-                    url2 = info['entries'][0]['url']
-                    title = info['entries'][0]['title']
-                else:
-                    # C'est une seule vidéo
-                    url2 = info['url']
-                    title = info['title']
-                voice_client.play(discord.FFmpegPCMAudio(url2))
+            # Recherche de la vidéo
+            videos_search = VideosSearch(query, limit = 1)
+            results = await self.bot.loop.run_in_executor(None, videos_search.result)
+            
+            if not results['result']:
+                await ctx.send("Aucune vidéo trouvée.")
+                return
+
+            video = results['result'][0]
+            title = video['title']
+            url = video['link']
+
+            # Lecture de l'audio
+            voice_client.play(discord.FFmpegPCMAudio(url))
+            await ctx.send(f"En train de jouer : {title}")
         except Exception as e:
             await ctx.send(f"Erreur lors de la lecture de l'audio: {str(e)}")
             await voice_client.disconnect()
             return
-
-        await ctx.send(f"En train de jouer : {title}")
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
