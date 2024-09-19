@@ -1,22 +1,27 @@
 {
   "BTC": {
     "name": "Bitecoin",
-    "current_price": 31.41,
+    "current_price": 29.77,
     "volatility": 0.05
   },
   "GGL": {
     "name": "Analphabet Inc.",
-    "current_price": 181.75,
+    "current_price": 184.71,
     "volatility": 0.05
   },
   "ARA": {
     "name": "Arasaka Corp.",
-    "current_price": 525.93,
+    "current_price": 545.74,
     "volatility": 0.08
   },
   "NDA": {
     "name": "Nvid.IA",
-    "current_price": 39.71,
+    "current_price": 38.47,
     "volatility": 0.15
+  },  
+  "CUM": {
+    "name": "Sperm Bank",
+    "current_price": 59,
+    "volatility": 0.06
   }
 }
