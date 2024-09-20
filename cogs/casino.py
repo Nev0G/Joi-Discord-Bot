@@ -231,7 +231,11 @@ class Casino(commands.Cog):
     # Commande pour afficher le classement des utilisateurs
     @commands.command(name="leaderboard", aliases=["lb"])
     async def leaderboard(self, ctx):
-        leaderboard = sorted(self.user_data.items(), key=lambda x: x[1].get("points", 0), reverse=True)
+        # Charger les données utilisateur les plus récentes
+        with open(USER_DATA_FILE, "r") as f:
+            user_data = json.load(f)
+        
+        leaderboard = sorted(user_data.items(), key=lambda x: x[1].get("points", 0), reverse=True)
 
         if not leaderboard:
             await ctx.send("Le classement est vide.")

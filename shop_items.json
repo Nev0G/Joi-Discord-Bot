@@ -7,11 +7,17 @@
       "type": "command"
     },
     {
-      "name": "Role Exclusif",
+      "name": "Casino Addict",
       "description": "Acces à un role Discord exclusif de maxi bogoss.",
-      "price": 50000,
+      "price": 10000,
       "type": "role",
       "role_id": "1259251354967478324"
+    },
+    {
+      "name": "Roi des Juifs",
+      "description": "Il ne faut pas avoir peur",
+      "price": 25000,
+      "type": "1286715796520697887"
     }
   ]
 }
