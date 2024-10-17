@@ -19,17 +19,19 @@ class EmbedFix(commands.Cog):
 
         # Définitions des motifs de recherche pour les URLs
         tweet_url_pattern = r"https://(?:twitter\.com|x\.com)/\w+/status/\d+"
-        instagram_url_pattern = r"https://(?:www\.)?instagram\.com/(?:p|reel)/[\w-]+/?\S*"
+        instagram_post_pattern = r"https://(?:www\.)?instagram\.com/p/[\w-]+/?\S*"
+        instagram_reel_pattern = r"https://(?:www\.)?instagram\.com/reel/[\w-]+/?\S*"
         tiktok_url_pattern = r"https://(?:(?:www|vm)\.)?tiktok\.com/\S+"
 
         # Trouver tous les liens correspondants dans le message
         tweet_urls = re.findall(tweet_url_pattern, message.content)
-        instagram_urls = re.findall(instagram_url_pattern, message.content)
+        instagram_post_urls = re.findall(instagram_post_pattern, message.content)
+        instagram_reel_urls = re.findall(instagram_reel_pattern, message.content)
         tiktok_urls = re.findall(tiktok_url_pattern, message.content)
 
-        self.logger.info(f"URLs trouvées : Tweet: {tweet_urls}, Instagram: {instagram_urls}, TikTok: {tiktok_urls}")
+        self.logger.info(f"URLs trouvées : Tweet: {tweet_urls}, Instagram Posts: {instagram_post_urls}, Instagram Reels: {instagram_reel_urls}, TikTok: {tiktok_urls}")
 
-        if tweet_urls or instagram_urls or tiktok_urls:
+        if tweet_urls or instagram_post_urls or instagram_reel_urls or tiktok_urls:
             try:
                 await message.delete()
                 self.logger.info("Message original supprimé avec succès")
@@ -40,17 +42,18 @@ class EmbedFix(commands.Cog):
 
         for url, pattern, prefix, fixed_domain in [
             (tweet_urls, r"https://(?:twitter\.com|x\.com)/", "🐦", "fxtwitter.com"),
-            (instagram_urls, r"https://(?:www\.)?instagram\.com/", "📸", "ddinstagram.com"),
+            (instagram_post_urls, r"https://(?:www\.)?instagram\.com/", "📸", "ddinstagram.com"),
+            (instagram_reel_urls, r"https://(?:www\.)?instagram\.com/reel/", "📸", "ddinstagram.com/reel/"),
             (tiktok_urls, r"https://(?:(?:www|vm)\.)?tiktok\.com/", "🎵", "tnktok.com")
         ]:
             for original_url in url:
-                    if original_url in self.liens_envoyes:
-                        await message.channel.send(f"{message.author.mention}, Tu t'es fait bouclé salope 🔃")
-                    else:
-                        # Modification ici pour préserver les paramètres d'URL
-                        fixed_url = re.sub(pattern, f"https://{fixed_domain}/", original_url)
-                        self.liens_envoyes.add(original_url)
-                        await message.channel.send(f"{message.author.mention} - {prefix} - {fixed_url}")
+                if original_url in self.liens_envoyes:
+                    await message.channel.send(f"{message.author.mention}, Tu t'es fait bouclé salope 🔃")
+                else:
+                    # Modification ici pour préserver les paramètres d'URL
+                    fixed_url = re.sub(pattern, f"https://{fixed_domain}", original_url)
+                    self.liens_envoyes.add(original_url)
+                    await message.channel.send(f"{message.author.mention} - {prefix} - {fixed_url}")
 
 async def setup(bot):
     await bot.add_cog(EmbedFix(bot))
