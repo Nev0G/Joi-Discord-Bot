@@ -41,16 +41,16 @@ class EmbedFix(commands.Cog):
                 self.logger.error(f"Erreur lors de la suppression du message : {str(e)}")
 
         for url, pattern, prefix, fixed_domain in [
-            (tweet_urls, r"https://(?:twitter\.com|x\.com)/", "🐦", "fxtwitter.com"),
-            (instagram_post_urls, r"https://(?:www\.)?instagram\.com/", "📸", "ddinstagram.com"),
+            (tweet_urls, r"https://(?:twitter\.com|x\.com)/", "🐦", "fxtwitter.com/"),
+            (instagram_post_urls, r"https://(?:www\.)?instagram\.com/", "📸", "ddinstagram.com/"),
             (instagram_reel_urls, r"https://(?:www\.)?instagram\.com/reel/", "📸", "ddinstagram.com/reel/"),
-            (tiktok_urls, r"https://(?:(?:www|vm)\.)?tiktok\.com/", "🎵", "tnktok.com")
+            (tiktok_urls, r"https://(?:(?:www|vm)\.)?tiktok\.com/", "🎵", "tnktok.com/")
         ]:
             for original_url in url:
                 if original_url in self.liens_envoyes:
                     await message.channel.send(f"{message.author.mention}, Tu t'es fait bouclé salope 🔃")
                 else:
-                    # Modification ici pour préserver les paramètres d'URL
+                    # Modification ici pour préserver les paramètres d'URL et assurer le slash
                     fixed_url = re.sub(pattern, f"https://{fixed_domain}", original_url)
                     self.liens_envoyes.add(original_url)
                     await message.channel.send(f"{message.author.mention} - {prefix} - {fixed_url}")
