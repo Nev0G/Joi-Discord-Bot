@@ -19,7 +19,7 @@ class EmbedFix(commands.Cog):
 
         # Définitions des motifs de recherche pour les URLs
         tweet_url_pattern = r"https://(?:twitter\.com|x\.com)/\w+/status/\d+"
-        instagram_url_pattern = r"https://(?:www\.)?instagram\.com/p/[\w-]+/?\S*"
+        instagram_url_pattern = r"https://(?:www\.)?instagram\.com/(?:p|reel)/[\w-]+/?\S*"
         tiktok_url_pattern = r"https://(?:(?:www|vm)\.)?tiktok\.com/\S+"
 
         # Trouver tous les liens correspondants dans le message
