@@ -116,14 +116,34 @@ class Stocks(commands.Cog):
         if other_field:
             main_embed.add_field(name="🏢 Autres", value=other_field, inline=False)
 
-        # Add some market insights
-        top_gainer = max(self.stocks.items(), key=lambda x: ((x[1].get('current_price', 0) - self.previous_prices.get(x[0], x[1].get('current_price', 0))) / self.previous_prices.get(x[0], x[1].get('current_price', 0))) if self.previous_prices.get(x[0], 0) != 0 else 0)
-        top_loser = min(self.stocks.items(), key=lambda x: ((x[1].get('current_price', 0) - self.previous_prices.get(x[0], x[1].get('current_price', 0))) / self.previous_prices.get(x[0], x[1].get('current_price', 0))) if self.previous_prices.get(x[0], 0) != 0 else 0)
+                # Add some market insights
+        def calculate_percent_change(current, previous):
+            if previous == 0:
+                return float('inf') if current > 0 else float('-inf') if current < 0 else 0
+            return ((current - previous) / previous) * 100
 
-        insights = (f"📈 Top gagnant: **{top_gainer[0]}** (+{((top_gainer[1].get('current_price', 0) - self.previous_prices.get(top_gainer[0], top_gainer[1].get('current_price', 0))) / self.previous_prices.get(top_gainer[0], top_gainer[1].get('current_price', 0)) * 100):.2f}%)\n"
-                    f"📉 Top perdant: **{top_loser[0]}** ({((top_loser[1].get('current_price', 0) - self.previous_prices.get(top_loser[0], top_loser[1].get('current_price', 0))) / self.previous_prices.get(top_loser[0], top_loser[1].get('current_price', 0)) * 100):.2f}%)")
+        top_gainer = max(self.stocks.items(), key=lambda x: calculate_percent_change(
+            x[1].get('current_price', 0),
+            self.previous_prices.get(x[0], x[1].get('current_price', 0))
+        ))
+        top_loser = min(self.stocks.items(), key=lambda x: calculate_percent_change(
+            x[1].get('current_price', 0),
+            self.previous_prices.get(x[0], x[1].get('current_price', 0))
+        ))
+
+        def format_percent_change(symbol, stock_data):
+            current_price = stock_data.get('current_price', 0)
+            previous_price = self.previous_prices.get(symbol, current_price)
+            percent_change = calculate_percent_change(current_price, previous_price)
+            if abs(percent_change) == float('inf'):
+                return "N/A%"
+            return f"{percent_change:+.2f}%"
+
+        insights = (f"📈 Top gagnant: **{top_gainer[0]}** ({format_percent_change(top_gainer[0], top_gainer[1])})\n"
+                    f"📉 Top perdant: **{top_loser[0]}** ({format_percent_change(top_loser[0], top_loser[1])})")
 
         main_embed.add_field(name="📊 Aperçu du Marché", value=insights, inline=False)
+
 
         # Send the embed
         await ctx.send(embed=main_embed)
