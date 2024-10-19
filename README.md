@@ -15,6 +15,7 @@ Un bot discord français créer par Nev0.
 - Alerte pédo
 - Commande harcélement
 - Commande Usurpation
+- Commande Time_Out (achetable)
 
 # Prochainement 
 - Commande Info
