@@ -6,19 +6,21 @@ Un bot discord français créer par Nev0.
 
 ## Features
 
-- TweetFix & X-Fix (Tweet & X embed fixer)
+- Twitter/X, Instagram & TikTok embed fixer
+- Systeme de boutique
+- Systeme de bourses (Scale sur vraies entreprises)
 - Instagram Embed Fix
 - TikTok Embed Fix
 - Quoi-(feur)
 - V a toi (Quand copié collé raté)
-- Random "ta gueule"
-- Alerte pédo
+- Random "ta gue***"
+- Alerte pédo (^^)
 - Commande harcélement
 - Commande Usurpation
 - Commande Time_Out (achetable)
 
 # Prochainement 
-- Commande Info
+- Commande Info au propre
 
 
 ## 🔗 
