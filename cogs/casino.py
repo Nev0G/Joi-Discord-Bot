@@ -5,6 +5,7 @@ import asyncio
 import json
 from typing import List, Tuple
 from collections import defaultdict
+import math
 
 
 USER_DATA_FILE = "user_data.json"
@@ -14,59 +15,76 @@ class Casino(commands.Cog):
         self.bot = bot
         self.user_data = self.load_user_data()
         self.bounty_channels = []
-        self.bot = bot
-        self.user_data = self.load_user_data()
-        self.bounty_channels = []
+        self.active_games = {}  # Pour suivre les jeux en cours
         # self.post_bounty.start()  # Décommentez pour activer les bounties
-
 
     @commands.command(name="casinohelp", aliases=["chelp"])
     async def casino_help(self, ctx):
         embed = discord.Embed(
-            title="🎰 Aide du Casino 🎰",
-            description="Liste des commandes disponibles dans le casino avec leurs paramètres:",
-            color=0xFFD700  # Couleur or
+            title="🎰 Casino de Joi - Guide Complet 🎰",
+            description="Voici tous les jeux disponibles dans notre casino :",
+            color=0xFFD700
         )
-        commands_list = [
-            ("🎰 Machine à sous", "j!slot <mise>", 
-             "• <mise>: Montant de points à parier (nombre positif)"),
-            
-            ("🃏 Blackjack", "j!blackjack <mise> ou j!bj <mise>", 
-             "• <mise>: Montant de points à parier (nombre positif)"),
-            
-            ("🎡 Roulette", "j!roulette <mise> <choix>", 
-             "• <mise>: Montant de points à parier (nombre positif)\n"
-             "• <choix>: rouge, noir, pair, impair, manque (1-18), passe (19-36), ou un nombre de 0 à 36"),
-            
-            ("⚔️ Duel", "j!duel @joueur <mise>", 
-             "• @joueur: Mention du joueur à défier\n"
-             "• <mise>: Montant de points à parier (nombre positif)"),
-            
-            ("💰 Points", "j!points [@joueur]", 
-             "• [@joueur]: (Optionnel) Mention du joueur dont vous voulez vérifier les points"),
-            
-            ("🏆 Classement", "j!leaderboard ou j!lb", 
-             "Aucun paramètre nécessaire"),
-            
-            ("💸 RSA", "j!rsa", 
-             "Aucun paramètre nécessaire (cooldown: 1 heure)"),
-            
-            ("🎁 Donner", "j!donner @joueur <montant>", 
-             "• @joueur: Mention du joueur à qui donner des points\n"
-             "• <montant>: Nombre de points à donner (nombre positif)"),
-            
-            ("🕵️ Vol", "j!vol @joueur <montant>", 
-             "• @joueur: Mention du joueur à voler\n"
-             "• <montant>: Nombre de points à essayer de voler (nombre positif)")
-        ]
-        for title, command, params in commands_list:
-            embed.add_field(
-                name=f"{title} - `{command}`", 
-                value=f"Paramètres:\n{params}", 
-                inline=False
-            )
-        embed.set_footer(text="Bonne chance et jouez de manière responsable!")
         
+        # Jeux de base
+        embed.add_field(
+            name="🎰 **JEUX CLASSIQUES**",
+            value=(
+                "• `j!slot <mise>` - Machine à sous\n"
+                "• `j!blackjack <mise>` - Blackjack classique\n"
+                "• `j!roulette <mise> <choix>` - Roulette européenne\n"
+                "• `j!duel @joueur <mise>` - Duel entre joueurs"
+            ),
+            inline=False
+        )
+        
+        # Nouveaux jeux
+        embed.add_field(
+            name="🎲 **NOUVEAUX JEUX**",
+            value=(
+                "• `j!crash <mise>` - Jeu de crash avec multiplicateur\n"
+                "• `j!mines <mise> <mines>` - Démineur (1-24 mines)\n"
+                "• `j!coinflip <mise> <face/pile>` - Pile ou face\n"
+                "• `j!dice <mise> <nombre>` - Devinez le dé (1-6)\n"
+                "• `j!lottery <prix_ticket>` - Loterie commune\n"
+                "• `j!wheel <mise>` - Roue de la fortune"
+            ),
+            inline=False
+        )
+        
+        # Jeux avancés
+        embed.add_field(
+            name="🎯 **JEUX AVANCÉS**",
+            value=(
+                "• `j!poker <mise>` - Poker vidéo\n"
+                "• `j!baccarat <mise> <joueur/banquier/égalité>` - Baccarat\n"
+                "• `j!limbo <mise> <multi>` - Limbo (multiplicateur)\n"
+                "• `j!keno <mise> <num1 num2...>` - Keno (max 10 numéros)"
+            ),
+            inline=False
+        )
+        
+        # Utilitaires
+        embed.add_field(
+            name="💰 **UTILITAIRES**",
+            value=(
+                "• `j!points [@joueur]` - Voir les points\n"
+                "• `j!leaderboard` - Classement\n"
+                "• `j!rsa` - Aide sociale (100pts/h)\n"
+                "• `j!donner @joueur <montant>` - Donner des points\n"
+                "• `j!vol @joueur <montant>` - Tenter un vol\n"
+                "• `j!stats` - Vos statistiques de jeu"
+            ),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎁 **BONUS QUOTIDIENS**",
+            value="• `j!daily` - Bonus quotidien (500pts)\n• `j!weekly` - Bonus hebdomadaire (2000pts)",
+            inline=False
+        )
+        
+        embed.set_footer(text="🍀 Bonne chance et jouez de manière responsable ! 🍀")
         await ctx.send(embed=embed)
 
     def load_user_data(self):
@@ -95,12 +113,443 @@ class Casino(commands.Cog):
         with open(USER_DATA_FILE, "w") as f:
             json.dump(data, f, indent=2)
 
-    # Commande de test pour vérifier si le cog fonctionne
-    @commands.command(name="test")
-    async def test_command(self, ctx):
-        await ctx.send("Le cog Casino fonctionne!")
+    def update_user_stats(self, user_id, game_type, bet, won, winnings=0):
+        """Met à jour les statistiques de jeu d'un utilisateur"""
+        with open(USER_DATA_FILE, "r") as f:
+            data = json.load(f)
+        
+        user_id = str(user_id)
+        if user_id not in data:
+            data[user_id] = {}
+        if "stats" not in data[user_id]:
+            data[user_id]["stats"] = {
+                "games_played": 0,
+                "total_bet": 0,
+                "total_won": 0,
+                "biggest_win": 0,
+                "games": {}
+            }
+        
+        stats = data[user_id]["stats"]
+        stats["games_played"] += 1
+        stats["total_bet"] += bet
+        if won:
+            stats["total_won"] += winnings
+            if winnings > stats["biggest_win"]:
+                stats["biggest_win"] = winnings
+        
+        if game_type not in stats["games"]:
+            stats["games"][game_type] = {"played": 0, "won": 0}
+        
+        stats["games"][game_type]["played"] += 1
+        if won:
+            stats["games"][game_type]["won"] += 1
+        
+        with open(USER_DATA_FILE, "w") as f:
+            json.dump(data, f, indent=2)
 
-    # Commande de machine à sous
+    # ===== NOUVEAUX JEUX =====
+
+    @commands.command(name="crash")
+    @commands.cooldown(1, 15, commands.BucketType.user)
+    async def crash(self, ctx, bet: float):
+        """Jeu de crash - Arrêtez-vous avant que ça crash !"""
+        user_id = ctx.author.id
+        user_points = self.get_user_points(user_id)
+        
+        if bet <= 0:
+            await ctx.send("🚫 Vous devez parier au moins 1 point.")
+            return
+        
+        if user_points < bet:
+            await ctx.send("❌ Vous n'avez pas assez de points pour ce pari.")
+            return
+        
+        self.set_user_points(user_id, user_points - bet)
+        
+        # Le crash peut arriver entre 1.0x et 10.0x
+        crash_point = round(random.uniform(1.01, 10.0), 2)
+        current_multiplier = 1.0
+        
+        embed = discord.Embed(
+            title="🚀 CRASH GAME",
+            description=f"Mise: **{bet}** points\nMultiplicateur: **{current_multiplier}x**",
+            color=0x00ff00
+        )
+        embed.add_field(name="Instructions", value="Réagissez avec 💰 pour encaisser avant le crash !", inline=False)
+        
+        game_msg = await ctx.send(embed=embed)
+        await game_msg.add_reaction("💰")
+        
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) == "💰" and reaction.message.id == game_msg.id
+        
+        crashed = False
+        while current_multiplier < crash_point and not crashed:
+            current_multiplier = round(current_multiplier + 0.1, 2)
+            
+            embed.description = f"Mise: **{bet}** points\nMultiplicateur: **{current_multiplier}x**\nGain potentiel: **{round(bet * current_multiplier, 2)}** points"
+            embed.color = 0x00ff00 if current_multiplier < crash_point * 0.8 else 0xff9900
+            
+            await game_msg.edit(embed=embed)
+            
+            try:
+                await self.bot.wait_for('reaction_add', check=check, timeout=0.8)
+                # Joueur a encaissé
+                winnings = round(bet * current_multiplier, 2)
+                self.set_user_points(user_id, self.get_user_points(user_id) + winnings)
+                self.update_user_stats(user_id, "crash", bet, True, winnings)
+                
+                embed.title = "💰 ENCAISSÉ !"
+                embed.description = f"Vous avez encaissé à **{current_multiplier}x**\nGain: **{winnings}** points"
+                embed.color = 0x00ff00
+                await game_msg.edit(embed=embed)
+                return
+                
+            except asyncio.TimeoutError:
+                continue
+        
+        # Le jeu a crashé
+        self.update_user_stats(user_id, "crash", bet, False)
+        embed.title = "💥 CRASH !"
+        embed.description = f"Le multiplicateur a crashé à **{crash_point}x**\nVous avez perdu **{bet}** points"
+        embed.color = 0xff0000
+        await game_msg.edit(embed=embed)
+
+    @commands.command(name="mines")
+    @commands.cooldown(1, 20, commands.BucketType.user)
+    async def mines(self, ctx, bet: float, num_mines: int = 3):
+        """Jeu de démineur - Évitez les mines !"""
+        user_id = ctx.author.id
+        user_points = self.get_user_points(user_id)
+        
+        if bet <= 0:
+            await ctx.send("🚫 Vous devez parier au moins 1 point.")
+            return
+        
+        if user_points < bet:
+            await ctx.send("❌ Vous n'avez pas assez de points pour ce pari.")
+            return
+        
+        if not 1 <= num_mines <= 24:
+            await ctx.send("❌ Le nombre de mines doit être entre 1 et 24.")
+            return
+        
+        self.set_user_points(user_id, user_points - bet)
+        
+        # Créer le champ de mines (25 cases, 5x5)
+        mines_positions = random.sample(range(25), num_mines)
+        revealed = []
+        game_over = False
+        
+        def create_field():
+            field = ""
+            for i in range(25):
+                if i in revealed:
+                    if i in mines_positions:
+                        field += "💥"
+                    else:
+                        field += "💎"
+                else:
+                    field += f"{i+1:02d}⃣" if i < 9 else f"{i+1}⃣" if i < 19 else "🔢"
+                
+                if (i + 1) % 5 == 0:
+                    field += "\n"
+                else:
+                    field += " "
+            return field
+        
+        embed = discord.Embed(
+            title=f"💣 MINES - {num_mines} mines cachées",
+            description=f"Mise: **{bet}** points\nCases révélées: **{len(revealed)}**",
+            color=0x00ff00
+        )
+        embed.add_field(name="Champ de mines", value=create_field(), inline=False)
+        embed.add_field(name="Instructions", value="Tapez un numéro (1-25) pour révéler une case\nTapez 'stop' pour encaisser", inline=False)
+        
+        game_msg = await ctx.send(embed=embed)
+        
+        while not game_over and len(revealed) < 25 - num_mines:
+            def check(m):
+                return m.author == ctx.author and m.channel == ctx.channel
+            
+            try:
+                msg = await self.bot.wait_for('message', check=check, timeout=60.0)
+                choice = msg.content.lower()
+                await msg.delete()
+                
+                if choice == 'stop':
+                    # Encaisser
+                    multiplier = (25 / (25 - num_mines)) ** len(revealed)
+                    winnings = round(bet * multiplier, 2)
+                    self.set_user_points(user_id, self.get_user_points(user_id) + winnings)
+                    self.update_user_stats(user_id, "mines", bet, True, winnings)
+                    
+                    embed.title = "💰 ENCAISSÉ !"
+                    embed.description = f"Vous avez encaissé avec **{len(revealed)}** cases révélées\nGain: **{winnings}** points"
+                    embed.color = 0x00ff00
+                    await game_msg.edit(embed=embed)
+                    return
+                
+                try:
+                    position = int(choice) - 1
+                    if not 0 <= position <= 24:
+                        await ctx.send("❌ Numéro invalide (1-25)", delete_after=3)
+                        continue
+                    
+                    if position in revealed:
+                        await ctx.send("❌ Case déjà révélée", delete_after=3)
+                        continue
+                    
+                    revealed.append(position)
+                    
+                    if position in mines_positions:
+                        # Boom !
+                        revealed.extend(mines_positions)  # Révéler toutes les mines
+                        self.update_user_stats(user_id, "mines", bet, False)
+                        
+                        embed.title = "💥 BOOM !"
+                        embed.description = f"Vous avez touché une mine !\nVous avez perdu **{bet}** points"
+                        embed.color = 0xff0000
+                        embed.clear_fields()
+                        embed.add_field(name="Champ de mines", value=create_field(), inline=False)
+                        await game_msg.edit(embed=embed)
+                        return
+                    
+                    # Case sûre
+                    multiplier = (25 / (25 - num_mines)) ** len(revealed)
+                    potential_win = round(bet * multiplier, 2)
+                    
+                    embed.description = f"Mise: **{bet}** points\nCases révélées: **{len(revealed)}**\nGain potentiel: **{potential_win}** points"
+                    embed.clear_fields()
+                    embed.add_field(name="Champ de mines", value=create_field(), inline=False)
+                    embed.add_field(name="Instructions", value="Tapez un numéro (1-25) pour révéler une case\nTapez 'stop' pour encaisser", inline=False)
+                    await game_msg.edit(embed=embed)
+                    
+                except ValueError:
+                    await ctx.send("❌ Veuillez entrer un numéro valide ou 'stop'", delete_after=3)
+                    continue
+                    
+            except asyncio.TimeoutError:
+                await ctx.send("⏰ Temps écoulé ! Vous perdez votre mise.", delete_after=5)
+                self.update_user_stats(user_id, "mines", bet, False)
+                return
+
+    @commands.command(name="coinflip", aliases=["cf"])
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def coinflip(self, ctx, bet: float, choice: str):
+        """Pile ou face simple"""
+        user_id = ctx.author.id
+        user_points = self.get_user_points(user_id)
+        
+        if bet <= 0:
+            await ctx.send("🚫 Vous devez parier au moins 1 point.")
+            return
+        
+        if user_points < bet:
+            await ctx.send("❌ Vous n'avez pas assez de points pour ce pari.")
+            return
+        
+        if choice.lower() not in ['pile', 'face']:
+            await ctx.send("❌ Choisissez 'pile' ou 'face'")
+            return
+        
+        self.set_user_points(user_id, user_points - bet)
+        
+        result = random.choice(['pile', 'face'])
+        
+        # Animation
+        animation_msg = await ctx.send("🪙 La pièce tourne...")
+        for _ in range(3):
+            for emoji in ["🌑", "🌕"]:
+                await animation_msg.edit(content=f"🪙 La pièce tourne... {emoji}")
+                await asyncio.sleep(0.3)
+        
+        won = choice.lower() == result
+        
+        if won:
+            winnings = bet * 2
+            self.set_user_points(user_id, self.get_user_points(user_id) + winnings)
+            self.update_user_stats(user_id, "coinflip", bet, True, winnings)
+            await animation_msg.edit(content=f"🎉 {result.upper()} ! Vous gagnez **{winnings}** points !")
+        else:
+            self.update_user_stats(user_id, "coinflip", bet, False)
+            await animation_msg.edit(content=f"😞 {result.upper()} ! Vous perdez **{bet}** points.")
+
+    @commands.command(name="dice")
+    @commands.cooldown(1, 5, commands.BucketType.user)
+    async def dice(self, ctx, bet: float, guess: int):
+        """Devinez le résultat du dé (1-6)"""
+        user_id = ctx.author.id
+        user_points = self.get_user_points(user_id)
+        
+        if bet <= 0:
+            await ctx.send("🚫 Vous devez parier au moins 1 point.")
+            return
+        
+        if user_points < bet:
+            await ctx.send("❌ Vous n'avez pas assez de points pour ce pari.")
+            return
+        
+        if not 1 <= guess <= 6:
+            await ctx.send("❌ Choisissez un nombre entre 1 et 6")
+            return
+        
+        self.set_user_points(user_id, user_points - bet)
+        
+        result = random.randint(1, 6)
+        dice_faces = ["", "⚀", "⚁", "⚂", "⚃", "⚄", "⚅"]
+        
+        # Animation
+        animation_msg = await ctx.send("🎲 Le dé roule...")
+        for _ in range(3):
+            for face in dice_faces[1:]:
+                await animation_msg.edit(content=f"🎲 Le dé roule... {face}")
+                await asyncio.sleep(0.2)
+        
+        won = guess == result
+        
+        if won:
+            winnings = bet * 6  # Paiement 6:1
+            self.set_user_points(user_id, self.get_user_points(user_id) + winnings)
+            self.update_user_stats(user_id, "dice", bet, True, winnings)
+            await animation_msg.edit(content=f"🎉 {dice_faces[result]} Parfait ! Vous gagnez **{winnings}** points !")
+        else:
+            self.update_user_stats(user_id, "dice", bet, False)
+            await animation_msg.edit(content=f"😞 {dice_faces[result]} Pas cette fois ! Vous perdez **{bet}** points.")
+
+    @commands.command(name="wheel")
+    @commands.cooldown(1, 10, commands.BucketType.user)
+    async def wheel(self, ctx, bet: float):
+        """Roue de la fortune avec différents multiplicateurs"""
+        user_id = ctx.author.id
+        user_points = self.get_user_points(user_id)
+        
+        if bet <= 0:
+            await ctx.send("🚫 Vous devez parier au moins 1 point.")
+            return
+        
+        if user_points < bet:
+            await ctx.send("❌ Vous n'avez pas assez de points pour ce pari.")
+            return
+        
+        self.set_user_points(user_id, user_points - bet)
+        
+        # Segments de la roue avec leurs probabilités
+        segments = [
+            ("💀", 0, 0.05),      # Perte totale
+            ("😢", 0.5, 0.15),    # Récupère 50%
+            ("😐", 1.0, 0.25),    # Récupère la mise
+            ("😊", 1.5, 0.20),    # x1.5
+            ("😁", 2.0, 0.15),    # x2
+            ("🤑", 3.0, 0.10),    # x3
+            ("💎", 5.0, 0.07),    # x5
+            ("🌟", 10.0, 0.03)    # x10
+        ]
+        
+        # Choisir un segment selon les probabilités
+        rand = random.random()
+        cumulative = 0
+        result_segment = segments[0]
+        
+        for segment in segments:
+            cumulative += segment[2]
+            if rand <= cumulative:
+                result_segment = segment
+                break
+        
+        emoji, multiplier, _ = result_segment
+        
+        # Animation
+        animation_msg = await ctx.send("🎡 La roue tourne...")
+        for _ in range(4):
+            for seg in segments:
+                await animation_msg.edit(content=f"🎡 La roue tourne... {seg[0]}")
+                await asyncio.sleep(0.3)
+        
+        winnings = round(bet * multiplier, 2)
+        
+        if multiplier > 0:
+            self.set_user_points(user_id, self.get_user_points(user_id) + winnings)
+            self.update_user_stats(user_id, "wheel", bet, multiplier >= 1, winnings if multiplier >= 1 else 0)
+            
+            if multiplier >= 1:
+                await animation_msg.edit(content=f"🎉 {emoji} Vous gagnez **{winnings}** points ! (x{multiplier})")
+            else:
+                await animation_msg.edit(content=f"😐 {emoji} Vous récupérez **{winnings}** points...")
+        else:
+            self.update_user_stats(user_id, "wheel", bet, False)
+            await animation_msg.edit(content=f"💀 {emoji} Perte totale ! Vous perdez **{bet}** points.")
+
+    @commands.command(name="daily")
+    @commands.cooldown(1, 86400, commands.BucketType.user)  # 24 heures
+    async def daily(self, ctx):
+        """Bonus quotidien"""
+        user_id = ctx.author.id
+        bonus = 500
+        current_points = self.get_user_points(user_id)
+        self.set_user_points(user_id, current_points + bonus)
+        
+        await ctx.send(f"🎁 {ctx.author.mention} Vous avez reçu votre bonus quotidien de **{bonus}** points !\nVotre solde: **{current_points + bonus}** points")
+
+    @commands.command(name="weekly")
+    @commands.cooldown(1, 604800, commands.BucketType.user)  # 7 jours
+    async def weekly(self, ctx):
+        """Bonus hebdomadaire"""
+        user_id = ctx.author.id
+        bonus = 2000
+        current_points = self.get_user_points(user_id)
+        self.set_user_points(user_id, current_points + bonus)
+        
+        await ctx.send(f"🎁 {ctx.author.mention} Vous avez reçu votre bonus hebdomadaire de **{bonus}** points !\nVotre solde: **{current_points + bonus}** points")
+
+    @commands.command(name="stats")
+    async def stats(self, ctx, member: discord.Member = None):
+        """Voir les statistiques de jeu"""
+        member = member or ctx.author
+        
+        with open(USER_DATA_FILE, "r") as f:
+            data = json.load(f)
+        
+        user_data = data.get(str(member.id), {})
+        stats = user_data.get("stats", {})
+        
+        if not stats:
+            await ctx.send(f"{member.mention} n'a pas encore de statistiques de jeu.")
+            return
+        
+        embed = discord.Embed(
+            title=f"📊 Statistiques de {member.display_name}",
+            color=0x00ff00
+        )
+        
+        embed.add_field(
+            name="Général",
+            value=(
+                f"Parties jouées: **{stats.get('games_played', 0)}**\n"
+                f"Total misé: **{stats.get('total_bet', 0)}** points\n"
+                f"Total gagné: **{stats.get('total_won', 0)}** points\n"
+                f"Plus gros gain: **{stats.get('biggest_win', 0)}** points\n"
+                f"Profit/Perte: **{stats.get('total_won', 0) - stats.get('total_bet', 0)}** points"
+            ),
+            inline=False
+        )
+        
+        games_stats = stats.get("games", {})
+        if games_stats:
+            games_text = ""
+            for game, game_data in games_stats.items():
+                played = game_data.get("played", 0)
+                won = game_data.get("won", 0)
+                win_rate = (won / played * 100) if played > 0 else 0
+                games_text += f"**{game.capitalize()}**: {played} parties, {win_rate:.1f}% victoires\n"
+            
+            embed.add_field(name="Par jeu", value=games_text or "Aucune donnée", inline=False)
+        
+        await ctx.send(embed=embed)
+
+    # ===== JEUX EXISTANTS AMÉLIORÉS =====
+
     @commands.command(name="slot")
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def slotmachine(self, ctx, bet: float):
@@ -119,16 +568,8 @@ class Casino(commands.Cog):
         
         symbols = ["🍒", "🍊", "🍋", "🍇", "🍎", "🍉", "💎", "🎰", "👑", "🌟"]
         multipliers = {
-            "🍒": 0.2,
-            "🍊": 0.3,
-            "🍋": 0.4,
-            "🍇": 0.5,
-            "🍎": 0.6,
-            "🍉": 0.7,
-            "💎": 0.8,
-            "🎰": 0.9,
-            "👑": 1.0,
-            "🌟": 1.1,
+            "🍒": 0.2, "🍊": 0.3, "🍋": 0.4, "🍇": 0.5, "🍎": 0.6,
+            "🍉": 0.7, "💎": 0.8, "🎰": 0.9, "👑": 1.0, "🌟": 1.1,
         }
         
         animation_message = await ctx.send(f"🎰 {ctx.author.mention} Machine à sous: {' | '.join(['❓', '❓', '❓'])}")
@@ -139,15 +580,18 @@ class Casino(commands.Cog):
                 await animation_message.edit(content=f"🎰 {ctx.author.mention} Machine à sous: {' | '.join(slots)}")
                 await asyncio.sleep(0.2)
         
-        if len(set(slots)) == 1:  # Si tous les symboles sont identiques (triple)
-            winnings = int(bet * (multipliers[slots[0]] + 20))  # Ajoute 20 au multiplicateur pour un triple
+        if len(set(slots)) == 1:  # Triple
+            winnings = int(bet * (multipliers[slots[0]] + 20))
+            self.update_user_stats(user_id, "slot", bet, True, winnings)
             await ctx.send(f"🤑 JACKPOT! Vous avez gagné **{winnings}** points!")
-        elif len(set(slots)) == 2:  # Si deux symboles sont identiques (paire)
-            winnings = int(bet * multipliers[slots[0]] + 1)  # Utilise le multiplicateur du premier symbole pour une paire
+        elif len(set(slots)) == 2:  # Paire
+            winnings = int(bet * multipliers[slots[0]] + 1)
+            self.update_user_stats(user_id, "slot", bet, True, winnings)
             await ctx.send(f"🎁 Petit gain! Vous récupérez **{winnings}** points!")
         else:  # Aucun doublon
             winnings = int(bet * (multipliers[slots[0]]))
-            await ctx.send(f"😭 Perdu bouffon! Vous récupérez **{winnings}** points!")
+            self.update_user_stats(user_id, "slot", bet, False)
+            await ctx.send(f"😭 Perdu ! Vous récupérez **{winnings}** points!")
             random_gif = random.choice([
                 "https://media1.tenor.com/m/cn5GW2a9qtUAAAAC/laughing-emoji-laughing.gif",
                 "https://media1.tenor.com/m/BbjFm-pfueUAAAAd/laughing-emoji-laughing.gif",
@@ -158,474 +602,6 @@ class Casino(commands.Cog):
         new_points = self.get_user_points(user_id) + winnings
         self.set_user_points(user_id, new_points)
         await ctx.send(f"{ctx.author.mention} 📊 Vous avez maintenant **{new_points}** points.")
-
-    @slotmachine.error
-    async def slotmachine_error(self, ctx, error):
-        if isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(f"{ctx.author.mention} ⏳ Veuillez attendre {error.retry_after:.1f} secondes avant de réutiliser la commande slotmachine.")
-        elif isinstance(error, commands.BadArgument):
-            await ctx.send(f"{ctx.author.mention} ⚠️ Erreur : l'argument doit être un nombre entier. Exemple : `j!slotmachine 10`")
-        else:
-            await ctx.send(f"{ctx.author.mention} Une erreur est survenue : {error}")
-            raise error
-
-    # Événement on_ready pour initialiser les canaux de bounty
-    @commands.Cog.listener()
-    async def on_ready(self):
-        self.bounty_channels = [channel.id for guild in self.bot.guilds for channel in guild.text_channels]
-        print(f"Bounty channels initialized: {self.bounty_channels}")
-
-    # Tâche de bounty (commentée par défaut)
-    @tasks.loop(minutes=random.randint(10, 60))
-    async def post_bounty(self):
-        if not self.bounty_channels:
-            print("No bounty channels available.")
-            return
-        
-        channel_id = random.choice(self.bounty_channels)
-        channel = self.bot.get_channel(channel_id)
-
-        if channel is None:
-            print(f"Channel with ID {channel_id} not found.")
-            return
-
-        bounty_points = random.randint(50, 200)
-
-        try:
-            bounty_message = await channel.send(f"🎯 **Bounty** 🎯\nRéagissez avec 🎯 pour gagner **{bounty_points} points** !")
-            await bounty_message.add_reaction("🎯")
-
-            def check(reaction, user):
-                return user != self.bot.user and str(reaction.emoji) == "🎯" and reaction.message.id == bounty_message.id
-
-            reaction, user = await self.bot.wait_for('reaction_add', check=check, timeout=300.0)
-
-            if reaction:
-                user_id = user.id
-                current_points = self.get_user_points(user_id)
-                new_points = current_points + bounty_points
-                self.set_user_points(user_id, new_points)
-                congratmess = await channel.send(f"🎉 {user.mention} a gagné **{bounty_points} points** en attrapant le bounty !")
-                await asyncio.sleep(5)
-                await bounty_message.delete()
-                await congratmess.delete()
-        except asyncio.TimeoutError:
-            congratmess = await channel.send("🚫 Aucun bounty n'a été réclamé à temps.")
-            await bounty_message.delete()
-            await congratmess.delete()
-        except Exception as e:
-            print(f"Erreur lors de l'envoi du bounty : {e}")
-
-    @post_bounty.before_loop
-    async def before_post_bounty(self):
-        await self.bot.wait_until_ready()
-        print("Bot ready, starting bounty task.")
-
-    # Commande pour afficher les points d'un utilisateur
-    @commands.command(name="points")
-    async def points(self, ctx, member: discord.Member = None):
-        member = member or ctx.author
-        points = self.get_user_points(member.id)
-        await ctx.send(f"🏆 {member.mention} a **{points}** points.")
-
-    # Commande pour afficher le classement des utilisateurs
-    @commands.command(name="leaderboard", aliases=["lb"])
-    async def leaderboard(self, ctx):
-        # Charger les données utilisateur les plus récentes
-        with open(USER_DATA_FILE, "r") as f:
-            user_data = json.load(f)
-        
-        leaderboard = sorted(user_data.items(), key=lambda x: x[1].get("points", 0), reverse=True)
-
-        if not leaderboard:
-            await ctx.send("Le classement est vide.")
-            return
-
-        first_place_user = await self.bot.fetch_user(int(leaderboard[0][0]))
-        if first_place_user:
-            first_place_embed = discord.Embed(
-                title=f"🏆 {first_place_user.name} est en tête du classement !",
-                color=0xFFD700
-            )
-            avatar_url = first_place_user.avatar.url if first_place_user.avatar else first_place_user.default_avatar.url
-            first_place_embed.set_thumbnail(url=avatar_url)
-            first_place_embed.add_field(name="Points", value=f"{leaderboard[0][1].get('points', 0)} points", inline=False)
-            first_place_embed.set_footer(text=f"Félicitations, {first_place_user.name} !")
-            await ctx.send(embed=first_place_embed)
-
-        embed = discord.Embed(title="Classement des utilisateurs", color=0x00ff00)
-
-        for i, (user_id, user_data) in enumerate(leaderboard[1:6], start=2):  # Limit to top 5 after first place
-            try:
-                user = await self.bot.fetch_user(int(user_id))
-                name = user.name if user else f"Utilisateur inconnu (ID: {user_id})"
-                embed.add_field(
-                    name=f"{i}. {name}",
-                    value=f"{user_data.get('points', 0)} points",
-                    inline=False
-                )
-            except discord.HTTPException as e:
-                print(f"Erreur lors de la récupération de l'utilisateur {user_id}: {e}")
-
-        await ctx.send(embed=embed)
-
-    # Commande RSA pour recevoir des points gratuits
-    @commands.command(name="rsa")
-    @commands.cooldown(1, 3600, commands.BucketType.user)
-    async def rsa(self, ctx):
-        user_id = ctx.author.id
-        current_points = self.get_user_points(user_id)
-        new_points = current_points + 100
-        self.set_user_points(user_id, new_points)
-        await ctx.send(f"{ctx.author.mention} 💰 Vous avez reçu **100 points** ! Votre nouveau solde est de **{new_points}** points.")
-
-    # Gestion des erreurs pour la commande RSA
-    @rsa.error
-    async def rsa_error(self, ctx, error):
-        if isinstance(error, commands.CommandOnCooldown):
-            minutes, seconds = divmod(error.retry_after, 60)
-            await ctx.author.send(f"⏳ Vous devez attendre {int(minutes)} minutes et {int(seconds)} secondes avant de pouvoir recevoir à nouveau les points RSA.")
-        else:
-            await ctx.send(f"Une erreur est survenue : {error}")
-
-    # Commande de duel entre joueurs
-    @commands.command(name="duel")
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def duel(self, ctx, opponent: discord.Member, bet: float):
-        if opponent == ctx.author:
-            await ctx.send("Vous ne pouvez pas vous défier vous-même ! ❌")
-            return
-
-        if bet <= 0:
-            await ctx.send("Le pari doit être supérieur à 0 points. 🛑")
-            return
-
-        challenger_points = self.get_user_points(ctx.author.id)
-        opponent_points = self.get_user_points(opponent.id)
-
-        if challenger_points < bet or opponent_points < bet:
-            await ctx.send("❌ L'un des joueurs n'a pas assez de points pour ce duel.")
-            return
-
-        await ctx.send(f"{opponent.mention}, {ctx.author.mention} vous défie pour un duel de **{bet}** points. Acceptez-vous ? (oui/non) ⚔️")
-
-        try:
-            msg = await self.bot.wait_for('message', check=lambda m: m.author == opponent and m.content.lower() in ["oui", "non"], timeout=60.0)
-        except asyncio.TimeoutError:
-            await ctx.send(f"⏳ {opponent.mention} n'a pas répondu à temps. Le duel est annulé.")
-            return
-
-        if msg.content.lower() == "non":
-            await ctx.send(f"🚫 {opponent.mention} a refusé le duel.")
-            return
-
-        duel_msg = await ctx.send("Le duel commence ! Lancement de la pièce...")
-        await asyncio.sleep(1)
-        for _ in range(2):
-            for phase in ["🌑", "🌒", "🌓", "🌔"]:
-                await duel_msg.edit(content=f"La pièce tourne... {phase}")
-                await asyncio.sleep(0.5)
-
-        winner, loser = random.choice([(ctx.author, opponent), (opponent, ctx.author)])
-
-        self.set_user_points(winner.id, self.get_user_points(winner.id) + bet)
-        self.set_user_points(loser.id, self.get_user_points(loser.id) - bet)
-
-        await ctx.send(f"🎉 {winner.mention} a gagné le duel et remporte **{bet}** points ! Félicitations !")
-
-    # Gestion des erreurs pour la commande de duel
-    @duel.error
-    async def duel_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(f"{ctx.author.mention}, veuillez mentionner un adversaire et le montant de votre pari. Utilisation : `j!duel @adversaire montant`")
-        elif isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(f"{ctx.author.mention}, cette commande est en cooldown. Veuillez réessayer dans {error.retry_after:.2f} secondes.")
-        else:
-            await ctx.send(f"Une erreur est survenue : {error}")
-            raise error
-
-    # Commande pour donner des points à un autre joueur
-    @commands.command(name="donner")
-    async def donner(self, ctx, member: discord.Member, amount: float):
-        donneur_id = str(ctx.author.id)
-        receveur_id = str(member.id)
-        
-        donneur_points = self.get_user_points(donneur_id)
-        receveur_points = self.get_user_points(receveur_id)
-        
-        if donneur_points < amount:
-            await ctx.send("Vous n'avez pas assez de points pour faire ce don.")
-            return
-        
-        self.set_user_points(donneur_id, donneur_points - amount)
-        self.set_user_points(receveur_id, receveur_points + amount)
-        
-        await ctx.send(f"{ctx.author.mention} a donné {amount} points à {member.mention}!")
-
-    # Commande pour voler des points à un autre joueur
-    @commands.command(name="vol")
-    @commands.cooldown(1, 3600, commands.BucketType.user)
-    async def steal(self, ctx, victim: discord.Member, amount: float):
-        thief_id = str(ctx.author.id)
-        victim_id = str(victim.id)
-
-        if thief_id == victim_id:
-            await ctx.send(f"{ctx.author.mention}, vous ne pouvez pas voler vos propres points.")
-            return
-
-        if amount <= 0:
-            await ctx.send(f"{ctx.author.mention}, veuillez spécifier un montant positif à voler.")
-            return
-
-        victim_points = self.get_user_points(victim_id)
-        if victim_points < amount:
-            await ctx.send(f"{victim.mention} n'a pas assez de points pour être volé.")
-            return
-
-        message = await ctx.send(f"🕵️‍♂️ {ctx.author.mention} prépare son coup pour voler {victim.mention}...")
-
-        await asyncio.sleep(2)
-        await message.edit(content=f"🔍 {ctx.author.mention} En train d'observer les alentours...")
-
-        await asyncio.sleep(2)
-        await message.edit(content=f"⏳ {ctx.author.mention} Attendre le bon moment...")
-
-        await asyncio.sleep(2)
-
-        stolen_points = min(amount, random.uniform(0, 1000))
-        success_chance = 0.4
-
-        if random.random() < success_chance:
-            self.set_user_points(thief_id, self.get_user_points(thief_id) + stolen_points)
-            self.set_user_points(victim_id, victim_points - stolen_points)
-            await ctx.send(f"💰 {ctx.author.mention} a réussi à voler **{stolen_points} points** de {victim.mention} ! 🎉")
-        else:
-            donation_amount = stolen_points // 2
-            self.set_user_points(thief_id, self.get_user_points(thief_id) - donation_amount)
-            self.set_user_points(victim_id, victim_points + donation_amount)
-            await ctx.send(f"🚨 {ctx.author.mention} a été attrapé(e) en train de voler {victim.mention} et a échoué ! 😱 Vous payez un dédommagement de **{donation_amount} points** à {victim.mention}.")
-
-    @steal.error
-    async def steal_error(self, ctx, error):
-        if isinstance(error, commands.MissingRequiredArgument):
-            await ctx.send(f"{ctx.author.mention}, veuillez mentionner une victime et le montant à voler. Utilisation : `j!vol @victime montant`")
-        elif isinstance(error, commands.BadArgument):
-            await ctx.send(f"{ctx.author.mention}, veuillez spécifier un montant valide à voler.")
-        elif isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(f"{ctx.author.mention}, cette commande est en cooldown. Veuillez réessayer dans {error.retry_after:.2f} secondes.")
-        else:
-            await ctx.send(f"Une erreur est survenue : {error}")
-            raise error
-        
-    # Commande pour jouer au blackjack
-    @commands.command(name="blackjack", aliases=["bj"])
-    @commands.cooldown(1, 30, commands.BucketType.user)
-    async def blackjack(self, ctx, bet: float):
-        user_id = ctx.author.id
-        user_points = self.get_user_points(user_id)
-
-        if bet <= 0:
-            await ctx.send(f"{ctx.author.mention} 🚫 Vous devez parier au moins 1 point.")
-            return
-
-        if user_points < bet:
-            await ctx.send(f"{ctx.author.mention} ❌ Vous n'avez pas assez de points pour ce pari.")
-            return
-
-        self.set_user_points(user_id, user_points - bet)
-
-        deck = self.create_deck()
-        player_hand = []
-        dealer_hand = []
-
-        # Distribution initiale
-        player_hand.append(self.draw_card(deck))
-        dealer_hand.append(self.draw_card(deck))
-        player_hand.append(self.draw_card(deck))
-        dealer_hand.append(self.draw_card(deck))
-
-        game_message = await ctx.send("Préparation du jeu...")
-        await asyncio.sleep(1)
-
-        while True:
-            player_value = self.calculate_hand_value(player_hand)
-            dealer_value = self.calculate_hand_value(dealer_hand)
-
-            if player_value == 21:
-                await self.update_game_message(game_message, player_hand, dealer_hand, True)
-                await ctx.send(f"{ctx.author.mention} 🎉 Blackjack ! Vous gagnez **{float(bet * 1.5)}** points !")
-                self.set_user_points(user_id, user_points + float(bet * 2.5))
-                return
-
-            await self.update_game_message(game_message, player_hand, dealer_hand)
-
-            # Demander au joueur de tirer ou de rester
-            question_message = await ctx.send(f"{ctx.author.mention}, voulez-vous tirer (t) ou rester (r) ?")
-
-            def check(m):
-                return m.author == ctx.author and m.content.lower() in ['t', 'r']
-
-            try:
-                choice = await self.bot.wait_for('message', check=check, timeout=30.0)
-                await choice.delete()  # Supprimer la réponse du joueur
-                await question_message.delete()  # Supprimer la question
-            except asyncio.TimeoutError:
-                await question_message.delete()  # Supprimer la question en cas de timeout
-                await ctx.send(f"{ctx.author.mention} Temps écoulé. Vous restez automatiquement.", delete_after=5)
-                break
-
-            if choice.content.lower() == 't':
-                player_hand.append(self.draw_card(deck))
-                if self.calculate_hand_value(player_hand) > 21:
-                    await self.update_game_message(game_message, player_hand, dealer_hand, True)
-                    await ctx.send(f"{ctx.author.mention} 💥 Vous avez dépassé 21. Vous perdez.")
-                    return
-            else:
-                break
-
-        # Tour du croupier
-        while dealer_value < 17:
-            dealer_hand.append(self.draw_card(deck))
-            dealer_value = self.calculate_hand_value(dealer_hand)
-
-        await self.update_game_message(game_message, player_hand, dealer_hand, True)
-
-        # Déterminer le gagnant
-        player_value = self.calculate_hand_value(player_hand)
-        if dealer_value > 21 or player_value > dealer_value:
-            await ctx.send(f"🎉 Vous gagnez ! Vous recevez **{bet * 2}** points.")
-            self.set_user_points(user_id, user_points + bet * 2)
-        elif player_value < dealer_value:
-            await ctx.send(f"{ctx.author.mention} 😢 Le croupier gagne. Vous perdez votre mise.")
-        else:
-            await ctx.send(f"{ctx.author.mention} 🤝 Égalité. Vous récupérez votre mise.")
-            self.set_user_points(user_id, user_points + bet)
-
-    def create_deck(self) -> List[Tuple[str, str]]:
-        suits = ['♠️', '♥️', '♦️', '♣️']
-        ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']
-        return [(rank, suit) for suit in suits for rank in ranks]
-
-    def draw_card(self, deck: List[Tuple[str, str]]) -> Tuple[str, str]:
-        return deck.pop(random.randint(0, len(deck) - 1))
-
-    def calculate_hand_value(self, hand: List[Tuple[str, str]]) -> int:
-        value = 0
-        aces = 0
-        for card in hand:
-            if card[0] in ['J', 'Q', 'K']:
-                value += 10
-            elif card[0] == 'A':
-                aces += 1
-            else:
-                value += int(card[0])
-        
-        for _ in range(aces):
-            if value + 11 <= 21:
-                value += 11
-            else:
-                value += 1
-        
-        return value
-
-    async def update_game_message(self, message: discord.Message, player_hand: List[Tuple[str, str]], dealer_hand: List[Tuple[str, str]], show_all: bool = False):
-        player_cards = ' '.join([f"{card[0]}{card[1]}" for card in player_hand])
-        if show_all:
-            dealer_cards = ' '.join([f"{card[0]}{card[1]}" for card in dealer_hand])
-        else:
-            dealer_cards = f"{dealer_hand[0][0]}{dealer_hand[0][1]} 🂠"
-        
-        embed = discord.Embed(title="Blackjack", color=0x00ff00)
-        embed.add_field(name="Votre main", value=f"{player_cards} (Valeur: {self.calculate_hand_value(player_hand)})", inline=False)
-        embed.add_field(name="Main du croupier", value=dealer_cards, inline=False)
-        
-        await message.edit(content="", embed=embed)
-
-    @blackjack.error
-    async def blackjack_error(self, ctx, error):
-        if isinstance(error, commands.BadArgument):
-            await ctx.send("Veuillez entrer un montant valide pour votre pari.")
-        elif isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(f"Cette commande est en cooldown. Réessayez dans {error.retry_after:.2f} secondes.")
-        else:
-            await ctx.send(f"Une erreur est survenue : {error}")
-            raise error
-        
-
-    @commands.command(name="roulette")
-    @commands.cooldown(1, 30, commands.BucketType.user)
-    async def roulette(self, ctx, bet: float, choice: str):
-        user_id = ctx.author.id
-        user_points = self.get_user_points(user_id)
-
-        if bet <= 0:
-            await ctx.send(f"{ctx.author.mention} 🚫 Vous devez parier au moins 1 point.")
-            return
-
-        if user_points < bet:
-            await ctx.send(f"{ctx.author.mention} ❌ Vous n'avez pas assez de points pour ce pari.")
-            return
-
-        valid_choices = ['rouge', 'noir', 'pair', 'impair', 'manque', 'passe'] + [str(i) for i in range(37)]
-        if choice.lower() not in valid_choices:
-            await ctx.send(f"{ctx.author.mention} ❌ Choix invalide. Les options sont : rouge, noir, pair, impair, manque (1-18), passe (19-36), ou un nombre de 0 à 36.")
-            return
-
-        self.set_user_points(user_id, user_points - bet)
-
-        roulette_numbers = {
-            0: '🟩',
-            32: '🟥', 19: '🟥', 21: '🟥', 25: '🟥', 34: '🟥', 27: '🟥', 36: '🟥', 30: '🟥', 23: '🟥', 5: '🟥', 16: '🟥', 1: '🟥', 14: '🟥', 9: '🟥', 18: '🟥', 7: '🟥', 12: '🟥', 3: '🟥',
-            15: '⬛', 4: '⬛', 2: '⬛', 17: '⬛', 6: '⬛', 13: '⬛', 11: '⬛', 8: '⬛', 10: '⬛', 24: '⬛', 33: '⬛', 20: '⬛', 31: '⬛', 22: '⬛', 29: '⬛', 28: '⬛', 35: '⬛', 26: '⬛'
-        }
-
-        animation_message = await ctx.send("🎰 La roulette tourne...")
-        for _ in range(3):
-            for number, color in roulette_numbers.items():
-                await animation_message.edit(content=f"🎰 La roulette tourne... {color} {number}")
-                await asyncio.sleep(0.2)
-
-        result = random.randint(0, 36)
-        result_color = roulette_numbers[result]
-
-        await animation_message.edit(content=f"🎰 La roulette s'arrête sur... {result_color} {result}!")
-
-        won = False
-        if choice.lower() == 'rouge' and result_color == '🟥':
-            won = True
-        elif choice.lower() == 'noir' and result_color == '⬛':
-            won = True
-        elif choice.lower() == 'pair' and result != 0 and result % 2 == 0:
-            won = True
-        elif choice.lower() == 'impair' and result % 2 == 1:
-            won = True
-        elif choice.lower() == 'manque' and 1 <= result <= 18:
-            won = True
-        elif choice.lower() == 'passe' and 19 <= result <= 36:
-            won = True
-        elif choice == str(result):
-            won = True
-            bet *= 35  # Paiement spécial pour avoir deviné le bon numéro
-
-        if won:
-            winnings = bet * 2
-            self.set_user_points(user_id, user_points + winnings)
-            await ctx.send(f"🎉 Félicitations, {ctx.author.mention}! Vous avez gagné **{winnings}** points!")
-        else:
-            await ctx.send(f"😢 Désolé, {ctx.author.mention}. Vous avez perdu votre mise.")
-
-        new_balance = self.get_user_points(user_id)
-        await ctx.send(f"💰 Votre nouveau solde est de **{new_balance}** points.")
-
-    @roulette.error
-    async def roulette_error(self, ctx, error):
-        if isinstance(error, commands.BadArgument):
-            await ctx.send("Veuillez entrer un montant valide pour votre pari et un choix valide.")
-        elif isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(f"Cette commande est en cooldown. Réessayez dans {error.retry_after:.2f} secondes.")
-        else:
-            await ctx.send(f"Une erreur est survenue : {error}")
-            raise error
 
 
 async def setup(bot):
