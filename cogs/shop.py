@@ -3,6 +3,7 @@ from discord.ext import commands
 import json
 import asyncio
 import random
+import aiohttp
 from datetime import datetime, timedelta
 
 class Shop(commands.Cog):
@@ -125,6 +126,12 @@ class Shop(commands.Cog):
             await self.handle_temporary_banker(ctx)
         elif item_name == "Custom Status":
             await self.handle_custom_status(ctx)
+        elif item_name == "Avatar Changer":
+            await self.handle_avatar_change(ctx)
+        elif item_name == "Name Changer":
+            await self.handle_name_change(ctx)
+        elif item_name == "Reset Avatar":
+            await self.handle_reset_avatar(ctx)
         elif item["type"] == "role":
             await self.handle_role_purchase(ctx, item)
 
@@ -275,6 +282,105 @@ class Shop(commands.Cog):
             await self.bot.change_presence(activity=None)
         except asyncio.TimeoutError:
             await ctx.send("❌ Temps écoulé!")
+
+    async def handle_avatar_change(self, ctx):
+        await ctx.send("🖼️ Envoie l'URL de la nouvelle image ou attache une image!")
+        try:
+            msg = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author and m.channel == ctx.channel, timeout=120)
+            
+            url = None
+            if msg.attachments:
+                url = msg.attachments[0].url
+            elif msg.content.startswith(('http://', 'https://')):
+                url = msg.content
+            else:
+                await ctx.send("❌ URL invalide ou pas d'image attachée!")
+                return
+
+            # Télécharger et changer l'avatar
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        await ctx.send("❌ Impossible de télécharger l'image!")
+                        return
+                    
+                    content_type = resp.headers.get('content-type', '')
+                    if not content_type.startswith('image/'):
+                        await ctx.send("❌ Le fichier n'est pas une image valide!")
+                        return
+                    
+                    content_length = resp.headers.get('content-length')
+                    if content_length and int(content_length) > 8 * 1024 * 1024:
+                        await ctx.send("❌ L'image est trop grande! (max 8MB)")
+                        return
+                    
+                    data = await resp.read()
+
+            await self.bot.user.edit(avatar=data)
+            
+            embed = discord.Embed(
+                title="✅ Avatar du bot changé!",
+                description=f"L'avatar a été changé par {ctx.author.mention}!",
+                color=0x00ff00
+            )
+            embed.set_thumbnail(url=self.bot.user.avatar.url)
+            await ctx.send(embed=embed)
+            
+        except discord.HTTPException as e:
+            if e.status == 429:
+                await ctx.send("❌ Trop de changements d'avatar! Discord limite à 2 changements par heure.")
+            else:
+                await ctx.send(f"❌ Erreur Discord: {e}")
+        except asyncio.TimeoutError:
+            await ctx.send("❌ Temps écoulé!")
+        except Exception as e:
+            await ctx.send(f"❌ Erreur: {e}")
+
+    async def handle_name_change(self, ctx):
+        await ctx.send("📝 Quel nouveau nom veux-tu donner au bot?")
+        try:
+            name_msg = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author and m.channel == ctx.channel, timeout=60)
+            new_name = name_msg.content
+            
+            if len(new_name) > 32:
+                await ctx.send("❌ Le nom est trop long! (max 32 caractères)")
+                return
+            
+            if len(new_name) < 2:
+                await ctx.send("❌ Le nom est trop court! (min 2 caractères)")
+                return
+
+            old_name = self.bot.user.name
+            await self.bot.user.edit(username=new_name)
+            
+            embed = discord.Embed(
+                title="✅ Nom du bot changé!",
+                description=f"Nom changé de **{old_name}** vers **{new_name}** par {ctx.author.mention}",
+                color=0x00ff00
+            )
+            await ctx.send(embed=embed)
+            
+        except discord.HTTPException as e:
+            if e.status == 429:
+                await ctx.send("❌ Trop de changements de nom! Discord limite à 2 changements par heure.")
+            else:
+                await ctx.send(f"❌ Erreur Discord: {e}")
+        except asyncio.TimeoutError:
+            await ctx.send("❌ Temps écoulé!")
+        except Exception as e:
+            await ctx.send(f"❌ Erreur: {e}")
+
+    async def handle_reset_avatar(self, ctx):
+        try:
+            await self.bot.user.edit(avatar=None)
+            embed = discord.Embed(
+                title="✅ Avatar remis par défaut!",
+                description=f"Avatar réinitialisé par {ctx.author.mention}",
+                color=0x00ff00
+            )
+            await ctx.send(embed=embed)
+        except Exception as e:
+            await ctx.send(f"❌ Erreur: {e}")
 
     async def handle_role_purchase(self, ctx, item):
         try:

@@ -17,7 +17,138 @@
       "name": "Roi des Juifs",
       "description": "Il ne faut pas avoir peur",
       "price": 25000,
-      "type": "1286715796520697887"
+      "type": "role",
+      "role_id": "1286715796520697887"
+    },
+    {
+      "name": "Spam Master",
+      "description": "Autorise à envoyer 10 messages d'affilée sans cooldown",
+      "price": 500,
+      "type": "command"
+    },
+    {
+      "name": "Voleur de Points",
+      "description": "Vole 10% des points d'un utilisateur au hasard",
+      "price": 1500,
+      "type": "command"
+    },
+    {
+      "name": "Multiplicateur x2",
+      "description": "Double tes gains de points pendant 24h",
+      "price": 2000,
+      "type": "buff"
+    },
+    {
+      "name": "Message Fantôme",
+      "description": "Envoie un message anonyme dans un salon de ton choix",
+      "price": 750,
+      "type": "command"
+    },
+    {
+      "name": "Shérif",
+      "description": "Peut timeout quelqu'un pendant 5 minutes (1 fois)",
+      "price": 3000,
+      "type": "role",
+      "role_id": "ROLE_ID_HERE"
+    },
+    {
+      "name": "Changeur de Pseudo",
+      "description": "Change le pseudo de quelqu'un sur le serveur pendant 1h",
+      "price": 1200,
+      "type": "command"
+    },
+    {
+      "name": "Notification Troll",
+      "description": "Envoie 5 pings à un utilisateur avec des messages aléatoires",
+      "price": 800,
+      "type": "command"
+    },
+    {
+      "name": "VIP Salon",
+      "description": "Accès à un salon VIP secret",
+      "price": 5000,
+      "type": "role",
+      "role_id": "ROLE_ID_HERE"
+    },
+    {
+      "name": "Doubleur de Mise",
+      "description": "La prochaine commande casino double automatiquement ta mise",
+      "price": 1800,
+      "type": "buff"
+    },
+    {
+      "name": "Bouclier Anti-Vol",
+      "description": "Immunité contre le vol de points pendant 48h",
+      "price": 2500,
+      "type": "buff"
+    },
+    {
+      "name": "Empereur du Chaos",
+      "description": "Role ultime avec couleur arc-en-ciel et permissions spéciales",
+      "price": 50000,
+      "type": "role",
+      "role_id": "ROLE_ID_HERE"
+    },
+    {
+      "name": "Resurrection",
+      "description": "Récupère 50% des points perdus lors de ta dernière grosse perte",
+      "price": 4000,
+      "type": "command"
+    },
+    {
+      "name": "Message Doré",
+      "description": "Ton prochain message sera encadré et mis en évidence par le bot",
+      "price": 600,
+      "type": "command"
+    },
+    {
+      "name": "Roulette Russe",
+      "description": "50% de chance de doubler tes points, 50% de chance de les perdre tous",
+      "price": 10000,
+      "type": "command"
+    },
+    {
+      "name": "Banquier Temporaire",
+      "description": "Reçois 1% des points dépensés par tous les utilisateurs pendant 12h",
+      "price": 15000,
+      "type": "buff"
+    },
+    {
+      "name": "Custom Status",
+      "description": "Le bot affiche un statut personnalisé de ton choix pendant 6h",
+      "price": 3500,
+      "type": "command"
+    },
+    {
+      "name": "Parrain de la Mafia",
+      "description": "Role exclusif + possibilité de créer des 'contrats' sur d'autres utilisateurs",
+      "price": 75000,
+      "type": "role",
+      "role_id": "ROLE_ID_HERE"
+    },
+    {
+      "name": "Avatar Changer",
+      "description": "Change l'avatar du bot avec ton image personnalisée",
+      "price": 5000,
+      "type": "command"
+    },
+    {
+      "name": "Custom Status",
+      "description": "Le bot affiche un statut personnalisé de ton choix pendant 6h",
+      "price": 3500,
+      "type": "command"
+    },
+    {
+      "name": "Name Changer",
+      "description": "Change le nom du bot temporairement",
+      "price": 7500,
+      "type": "command"
+    },
+    {
+      "name": "Reset Avatar",
+      "description": "Remet l'avatar du bot par défaut",
+      "price": 1000,
+      "type": "command"
     }
   ]
 }
