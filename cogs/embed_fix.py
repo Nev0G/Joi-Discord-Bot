@@ -3,8 +3,6 @@ from discord.ext import commands
 import re
 import discord
 import asyncio
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
-import json
 from datetime import datetime, timedelta
 
 class EmbedFix(commands.Cog):
@@ -12,6 +10,7 @@ class EmbedFix(commands.Cog):
         self.bot = bot
         self.liens_envoyes = {}  # Dictionnaire avec timestamp pour éviter le spam
         self.cooldown_duration = 300  # 5 minutes de cooldown
+        self.message_data = {}  # Stockage des données pour les réactions
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger('EmbedFix')
         
@@ -27,8 +26,7 @@ class EmbedFix(commands.Cog):
                     "https://vxtwitter.com/{}/status/{}",
                     "https://fixupx.com/{}/status/{}"
                 ],
-                "emoji": "🐦",
-                "name": "Twitter/X"
+                "emoji": "🐦"
             },
             "instagram_post": {
                 "patterns": [
@@ -38,8 +36,7 @@ class EmbedFix(commands.Cog):
                     "https://ddinstagram.com/p/{}",
                     "https://imginn.org/p/{}",
                 ],
-                "emoji": "📸",
-                "name": "Instagram Post"
+                "emoji": "📸"
             },
             "instagram_reel": {
                 "patterns": [
@@ -49,8 +46,7 @@ class EmbedFix(commands.Cog):
                     "https://ddinstagram.com/reel/{}",
                     "https://imginn.org/reel/{}",
                 ],
-                "emoji": "🎬",
-                "name": "Instagram Reel"
+                "emoji": "🎬"
             },
             "tiktok": {
                 "patterns": [
@@ -61,8 +57,7 @@ class EmbedFix(commands.Cog):
                     "https://tnktok.com/{}",
                     "https://tikwm.com/{}",
                 ],
-                "emoji": "🎵",
-                "name": "TikTok"
+                "emoji": "🎵"
             },
             "youtube_shorts": {
                 "patterns": [
@@ -72,8 +67,7 @@ class EmbedFix(commands.Cog):
                 "alternatives": [
                     "https://youtube.com/watch?v={}",
                 ],
-                "emoji": "🎥",
-                "name": "YouTube Shorts"
+                "emoji": "🎥"
             },
             "reddit": {
                 "patterns": [
@@ -84,8 +78,7 @@ class EmbedFix(commands.Cog):
                     "https://rxddit.com/r/{}/comments/{}",
                     "https://vxreddit.com/r/{}/comments/{}",
                 ],
-                "emoji": "🔴",
-                "name": "Reddit"
+                "emoji": "🔴"
             },
             "pixiv": {
                 "patterns": [
@@ -94,8 +87,7 @@ class EmbedFix(commands.Cog):
                 "alternatives": [
                     "https://phixiv.net/artworks/{}",
                 ],
-                "emoji": "🎨",
-                "name": "Pixiv"
+                "emoji": "🎨"
             },
             "twitch_clip": {
                 "patterns": [
@@ -105,8 +97,7 @@ class EmbedFix(commands.Cog):
                 "alternatives": [
                     "https://clips.twitch.tv/embed?clip={}&parent=discord.com",
                 ],
-                "emoji": "💜",
-                "name": "Twitch Clip"
+                "emoji": "💜"
             },
         }
 
@@ -121,6 +112,9 @@ class EmbedFix(commands.Cog):
         
         for key in expired_keys:
             del self.liens_envoyes[key]
+        
+        # Nettoyer aussi les données de messages
+        self.clean_message_data()
 
     def is_on_cooldown(self, url, user_id):
         """Vérifie si l'URL est en cooldown pour cet utilisateur"""
@@ -148,13 +142,7 @@ class EmbedFix(commands.Cog):
             self.logger.error(f"Erreur lors de la construction de l'URL: {e}")
             return None
 
-    async def test_url_accessibility(self, url):
-        """Teste si l'URL est accessible (simulation)"""
-        # Pour l'instant, on retourne True, mais on pourrait ajouter
-        # une vérification HTTP plus tard si nécessaire
-        return True
-
-    async def process_url(self, original_url, site_type, message):
+    async def process_url(self, original_url, site_type, message, alternative_index=0):
         """Traite une URL spécifique"""
         config = self.site_configs[site_type]
         
@@ -164,60 +152,47 @@ class EmbedFix(commands.Cog):
             if parts:
                 self.logger.info(f"Pattern trouvé pour {site_type}: {parts}")
                 
-                # Tester chaque alternative jusqu'à en trouver une qui marche
-                for alternative_template in config["alternatives"]:
+                # Utiliser l'alternative spécifiée par l'index
+                if alternative_index < len(config["alternatives"]):
+                    alternative_template = config["alternatives"][alternative_index]
                     try:
                         fixed_url = self.build_fixed_url(parts, alternative_template)
                         if fixed_url:
-                            # Vérifier le cooldown
-                            if self.is_on_cooldown(original_url, message.author.id):
-                                await message.channel.send(
-                                    f"{message.author.mention}, ce lien a déjà été fixé récemment ! 🔄"
-                                )
-                                return True
+                            # Vérifier le cooldown seulement pour le premier essai
+                            if alternative_index == 0 and self.is_on_cooldown(original_url, message.author.id):
+                                return None
                             
-                            # Ajouter au cooldown
-                            self.add_to_cooldown(original_url, message.author.id)
+                            # Ajouter au cooldown seulement pour le premier essai
+                            if alternative_index == 0:
+                                self.add_to_cooldown(original_url, message.author.id)
                             
-                            # Envoyer l'embed fix
-                            embed = discord.Embed(
-                                title=f"{config['emoji']} {config['name']} Fix",
-                                description=f"Lien original transformé pour un meilleur affichage",
-                                color=discord.Color.blue(),
-                                url=fixed_url
-                            )
-                            embed.add_field(
-                                name="Lien fixé", 
-                                value=f"[Cliquez ici]({fixed_url})", 
-                                inline=False
-                            )
-                            embed.add_field(
-                                name="Posté par", 
-                                value=message.author.mention, 
-                                inline=True
-                            )
-                            embed.set_footer(
-                                text=f"Fix automatique • {datetime.now().strftime('%H:%M')}"
-                            )
+                            # Envoyer SEULEMENT le lien fixé
+                            sent_message = await message.channel.send(fixed_url)
                             
-                            await message.channel.send(embed=embed)
+                            # Ajouter une réaction pour refresh si il y a d'autres alternatives
+                            if len(config["alternatives"]) > 1:
+                                await sent_message.add_reaction("🔄")
+                                
+                                # Stocker les données pour la réaction
+                                self.message_data[sent_message.id] = {
+                                    "original_url": original_url,
+                                    "site_type": site_type,
+                                    "parts": parts,
+                                    "current_alternative": alternative_index,
+                                    "author_id": message.author.id,
+                                    "timestamp": datetime.now()
+                                }
                             
-                            # Aussi envoyer le lien direct pour certains cas
-                            if site_type in ["twitter", "instagram_post", "instagram_reel"]:
-                                await message.channel.send(
-                                    f"{message.author.mention} - {config['emoji']} - {fixed_url}"
-                                )
-                            
-                            self.logger.info(f"URL {site_type} fixée avec succès: {fixed_url}")
-                            return True
+                            self.logger.info(f"URL {site_type} fixée avec succès: {fixed_url} (alternative {alternative_index + 1})")
+                            return sent_message
                             
                     except Exception as e:
                         self.logger.error(f"Erreur avec l'alternative {alternative_template}: {e}")
-                        continue
+                        return None
                 
                 break  # Sortir de la boucle des patterns si on a trouvé une correspondance
         
-        return False
+        return None
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -246,7 +221,8 @@ class EmbedFix(commands.Cog):
             
             # Tester chaque type de site
             for site_type in self.site_configs:
-                if await self.process_url(url, site_type, message):
+                sent_message = await self.process_url(url, site_type, message)
+                if sent_message:
                     urls_fixed.append(url)
                     should_delete_message = True
                     break
@@ -254,17 +230,11 @@ class EmbedFix(commands.Cog):
         # Supprimer le message original si au moins une URL a été fixée
         if should_delete_message:
             try:
-                await asyncio.sleep(1)  # Petit délai pour que l'embed apparaisse avant
+                await asyncio.sleep(1)  # Petit délai pour que le lien apparaisse avant
                 await message.delete()
                 self.logger.info("Message original supprimé avec succès")
             except discord.errors.Forbidden:
                 self.logger.warning(f"Permissions insuffisantes pour supprimer le message dans #{message.channel.name}")
-                # Envoyer un message d'information
-                await message.channel.send(
-                    f"⚠️ Je n'ai pas les permissions pour supprimer le message original. "
-                    f"Veuillez me donner la permission 'Gérer les messages'.",
-                    delete_after=10
-                )
             except discord.errors.NotFound:
                 self.logger.info("Message déjà supprimé")
             except Exception as e:
@@ -272,6 +242,78 @@ class EmbedFix(commands.Cog):
 
         if urls_fixed:
             self.logger.info(f"URLs fixées: {len(urls_fixed)}/{len(urls)}")
+
+    @commands.Cog.listener()
+    async def on_reaction_add(self, reaction, user):
+        """Gère les réactions pour refresh les liens"""
+        if user.bot:
+            return
+        
+        if str(reaction.emoji) != "🔄":
+            return
+        
+        message_id = reaction.message.id
+        if message_id not in self.message_data:
+            return
+        
+        data = self.message_data[message_id]
+        
+        # Vérifier que c'est l'auteur original ou un admin qui réagit
+        if user.id != data["author_id"]:
+            # Vérifier les permissions d'admin
+            try:
+                member = reaction.message.guild.get_member(user.id)
+                if not member.guild_permissions.manage_messages:
+                    await reaction.remove(user)
+                    return
+            except:
+                await reaction.remove(user)
+                return
+        
+        # Vérifier que le message n'est pas trop ancien (30 minutes)
+        if datetime.now() - data["timestamp"] > timedelta(minutes=30):
+            await reaction.message.edit(content=f"~~{reaction.message.content}~~ *(Lien expiré)*")
+            del self.message_data[message_id]
+            return
+        
+        # Passer à l'alternative suivante
+        config = self.site_configs[data["site_type"]]
+        next_alternative = (data["current_alternative"] + 1) % len(config["alternatives"])
+        
+        try:
+            # Construire le nouveau lien
+            alternative_template = config["alternatives"][next_alternative]
+            new_fixed_url = self.build_fixed_url(data["parts"], alternative_template)
+            
+            if new_fixed_url:
+                # Éditer le message avec le nouveau lien
+                await reaction.message.edit(content=new_fixed_url)
+                
+                # Mettre à jour les données
+                data["current_alternative"] = next_alternative
+                
+                # Retirer la réaction de l'utilisateur
+                await reaction.remove(user)
+                
+                self.logger.info(f"Lien refreshé vers l'alternative {next_alternative + 1}: {new_fixed_url}")
+            else:
+                await reaction.remove(user)
+                
+        except Exception as e:
+            self.logger.error(f"Erreur lors du refresh: {e}")
+            await reaction.remove(user)
+
+    def clean_message_data(self):
+        """Nettoie les anciennes données de messages"""
+        current_time = datetime.now()
+        expired_keys = []
+        
+        for message_id, data in self.message_data.items():
+            if current_time - data["timestamp"] > timedelta(minutes=30):
+                expired_keys.append(message_id)
+        
+        for key in expired_keys:
+            del self.message_data[key]
 
     @commands.command(name="testfix")
     @commands.has_permissions(manage_messages=True)
@@ -287,61 +329,69 @@ class EmbedFix(commands.Cog):
         mock_message = MockMessage()
         
         # Tester le fix
-        fixed = False
+        fixed_message = None
         for site_type in self.site_configs:
-            if await self.process_url(url, site_type, mock_message):
-                fixed = True
+            fixed_message = await self.process_url(url, site_type, mock_message)
+            if fixed_message:
                 break
         
-        if not fixed:
+        if not fixed_message:
             await ctx.send(f"❌ Aucun fix disponible pour cette URL: `{url}`")
-
-    @commands.command(name="fixstats")
-    async def fix_stats(self, ctx):
-        """Affiche les statistiques du système de fix"""
-        embed = discord.Embed(
-            title="📊 Statistiques Embed Fix",
-            description="Informations sur le système de correction d'embeds",
-            color=discord.Color.green()
-        )
-        
-        # Compter les sites supportés
-        total_sites = len(self.site_configs)
-        total_patterns = sum(len(config["patterns"]) for config in self.site_configs.values())
-        total_alternatives = sum(len(config["alternatives"]) for config in self.site_configs.values())
-        
-        embed.add_field(name="Sites supportés", value=str(total_sites), inline=True)
-        embed.add_field(name="Patterns totaux", value=str(total_patterns), inline=True)
-        embed.add_field(name="Alternatives", value=str(total_alternatives), inline=True)
-        
-        # Lister les sites supportés
-        sites_list = []
-        for site_type, config in self.site_configs.items():
-            sites_list.append(f"{config['emoji']} {config['name']}")
-        
-        embed.add_field(
-            name="Sites pris en charge",
-            value="\n".join(sites_list),
-            inline=False
-        )
-        
-        # Cooldowns actifs
-        self.clean_cooldowns()
-        active_cooldowns = len(self.liens_envoyes)
-        embed.add_field(name="Cooldowns actifs", value=str(active_cooldowns), inline=True)
-        
-        embed.set_footer(text=f"Cooldown: {self.cooldown_duration // 60} minutes")
-        
-        await ctx.send(embed=embed)
 
     @commands.command(name="clearcooldowns")
     @commands.has_permissions(manage_messages=True)
     async def clear_cooldowns(self, ctx):
         """Nettoie tous les cooldowns (admin seulement)"""
-        count = len(self.liens_envoyes)
+        cooldown_count = len(self.liens_envoyes)
+        message_count = len(self.message_data)
+        
         self.liens_envoyes.clear()
-        await ctx.send(f"✅ {count} cooldowns supprimés.")
+        self.message_data.clear()
+        
+        await ctx.send(f"✅ {cooldown_count} cooldowns et {message_count} données de messages supprimés.")
+
+    @commands.command(name="fixinfo")
+    async def fix_info(self, ctx):
+        """Affiche les informations sur le système de refresh"""
+        embed = discord.Embed(
+            title="🔄 Système de Refresh des Liens",
+            description="Comment utiliser le système de refresh automatique",
+            color=discord.Color.blue()
+        )
+        
+        embed.add_field(
+            name="🔄 Refresh",
+            value="Cliquez sur 🔄 pour essayer une autre alternative de fix si le lien ne fonctionne pas",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="⏰ Durée",
+            value="Les liens peuvent être refreshés pendant 30 minutes après l'envoi",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="👤 Permissions",
+            value="Seul l'auteur du lien original ou un modérateur peut refresh",
+            inline=True
+        )
+        
+        # Lister les sites avec plusieurs alternatives
+        sites_with_alternatives = []
+        for site_type, config in self.site_configs.items():
+            if len(config["alternatives"]) > 1:
+                sites_with_alternatives.append(f"{config['emoji']} {len(config['alternatives'])} alternatives")
+        
+        if sites_with_alternatives:
+            embed.add_field(
+                name="Sites avec alternatives multiples",
+                value="\n".join(sites_with_alternatives),
+                inline=False
+            )
+        
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(EmbedFix(bot))
-    logging.getLogger('EmbedFix').info("Cog EmbedFix amélioré chargé avec succès")
+    logging.getLogger('EmbedFix').info("Cog EmbedFix simplifié chargé avec succès")
