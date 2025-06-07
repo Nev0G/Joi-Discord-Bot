@@ -13,7 +13,7 @@ class Help(commands.Cog):
         except FileNotFoundError:
             return {}
 
-    @commands.command(name="alaide", aliases=["aide", "h"])
+    @commands.command(name="alaide")
     async def help_command(self, ctx):
         """Commande d'aide principale"""
         embed = discord.Embed(
