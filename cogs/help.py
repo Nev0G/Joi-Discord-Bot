@@ -1124,6 +1124,57 @@ class CustomHelpCommand(commands.Cog):
         
         await ctx.send(embed=embed)
 
+    @commands.command(name="bot_commands", aliases=["botcmds"])
+    async def bot_management_help(self, ctx):
+        """Affiche les commandes de gestion du bot"""
+        embed = discord.Embed(
+        title="🤖 Commandes de Gestion du Bot",
+        description="Personnalisez l'apparence du bot avec vos points !",
+        color=0x3498db
+    )
+    
+        embed.add_field(
+        name="🖼️ Gestion Avatar",
+        value="`j!avatar <URL>` - Changer l'avatar (5,000 pts)\n"
+              "`j!reset_avatar` - Remettre par défaut (1,000 pts)",
+        inline=False
+    )
+    
+        embed.add_field(
+        name="🏷️ Gestion Nom", 
+        value="`j!name <nouveau_nom>` - Changer le nom (7,500 pts)",
+        inline=False
+    )
+    
+        embed.add_field(
+        name="🎮 Gestion Statut",
+        value="`j!status <type> <texte>` - Changer le statut\n"
+              "• Standard: 3,500 pts (6h) • Premium: 6,000 pts (12h)\n"
+              "`j!reset_status` - Reset statut (500 pts)\n"
+              "`j!presets` - Statuts pré-définis populaires",
+        inline=False
+    )
+    
+        embed.add_field(
+        name="📊 Informations",
+        value="`j!bot_status` - Voir toutes les modifications actives",
+        inline=False
+    )
+    
+        embed.add_field(
+        name="🎮 Types de Statut",
+        value="• `playing` - Joue à...\n• `listening` - Écoute...\n"
+              "• `watching` - Regarde...\n• `streaming` - Streame...\n"
+              "• `competing` - Participe à...",
+        inline=False
+    )
+    
+        await ctx.send(embed=embed)
+
+            
+            
+
+
 async def setup(bot):
     await bot.add_cog(CustomHelpCommand(bot))
 

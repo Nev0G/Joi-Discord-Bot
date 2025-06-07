@@ -114,7 +114,48 @@ class Shop(commands.Cog):
                             "category": "💪 Buffs",
                             "emoji": "💰",
                             "uses": 1
+                        },
+                        {
+                            "name": "Avatar Changer",
+                            "description": "Change l'avatar du bot avec ton image personnalisée (6h)",
+                            "price": 20000,
+                            "type": "command",
+                            "duration": 21600
+                        },
+                        {
+                            "name": "Name Changer", 
+                            "description": "Change le nom du bot temporairement (6h)",
+                            "price": 10000,
+                            "type": "command",
+                            "duration": 21600
+                        },
+                        {
+                            "name": "Reset Avatar",
+                            "description": "Remet l'avatar du bot par défaut",
+                            "price": 10000,
+                            "type": "command"
+                        },
+                        {
+                            "name": "Custom Status",
+                            "description": "Le bot affiche un statut personnalisé de ton choix pendant 6h",
+                            "price": 3500,
+                            "type": "command",
+                            "duration": 21600
+                        },
+                        {
+                            "name": "Premium Status",
+                            "description": "Statut avec activité personnalisée et type au choix (12h)",
+                            "price": 6000,
+                            "type": "command",
+                            "duration": 43200
+                        },
+                        {
+                            "name": "Reset Status",
+                            "description": "Remet le statut du bot par défaut",
+                            "price": 500,
+                            "type": "command"
                         }
+
                     ]
                 }
                 self.save_shop_items(default_items)
