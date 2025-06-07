@@ -272,8 +272,8 @@ class Help(commands.Cog):
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="botcmds", aliases=["bot_commands", "botcommands"])
-    async def bot_management_help(self, ctx):
+    @commands.command(name="botcmds", aliases=["botcommands"])
+    async def management_help(self, ctx):
         """Affiche les commandes de gestion du bot"""
         embed = discord.Embed(
             title="🤖 Commandes de Gestion du Bot",
@@ -551,7 +551,7 @@ class Help(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="info", aliases=["botinfo", "about"])
-    async def bot_info(self, ctx):
+    async def info(self, ctx):
         """Informations sur le bot"""
         embed = discord.Embed(
             title="🤖 JackBot - Informations",

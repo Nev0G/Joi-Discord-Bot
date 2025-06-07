@@ -16,7 +16,7 @@ class BotManagement(commands.Cog):
         self.temp_changes = self.load_temp_changes()
         self.cleanup_task.start()
         
-    def cog_unload(self):
+    def manag_unload(self):
         self.cleanup_task.cancel()
 
     def load_temp_changes(self):
@@ -500,7 +500,7 @@ class BotManagement(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name="bot_status", aliases=["botstatus", "status_info"])
+    @commands.command(name="botstatus", aliases=["status_info"])
     async def show_bot_status_info(self, ctx):
         """Affiche toutes les modifications actives du bot"""
         embed = discord.Embed(
@@ -575,7 +575,7 @@ class BotManagement(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="botcmds", aliases=["bothelp"])
-    async def bot_commands_help(self, ctx):
+    async def botcommands_help(self, ctx):
         """Guide d'aide pour les commandes de gestion du bot"""
         embed = discord.Embed(
             title="🤖 Gestion du Bot",

@@ -305,7 +305,7 @@ class Stocks(commands.Cog):
             if page < total_pages:
                 await loading_msg.add_reaction("➡️")
 
-    @commands.command(name="buy", aliases=["acheter", "achat"])
+    @commands.command(name="sbuy", aliases=["sacheter", "sachat"])
     async def buy_stock(self, ctx, symbol: str, quantity: int = 1):
         """Achète des actions avec animation"""
         symbol = symbol.upper()
