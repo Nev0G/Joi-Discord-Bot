@@ -275,7 +275,7 @@ class Help(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(name="bothelp")
-    async def bot_management_help(self, ctx):
+    async def management_help(self, ctx):
         """Aide pour la gestion du bot"""
         embed = discord.Embed(
             title="🤖 Gestion du Bot - Personnalisation",
