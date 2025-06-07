@@ -1617,7 +1617,7 @@ class Casino(commands.Cog):
 
         await ctx.send(embed=embed)
 
-    @commands.command(name="cleaderboard", aliases=["lb", "top", "classement"])
+    @commands.command(name="cleaderboard", aliases=["lb", "ctop", "cclassement"])
     async def leaderboard(self, ctx, category: str = "points"):
         """Affiche le classement des joueurs"""
         data = self.load_user_data()
