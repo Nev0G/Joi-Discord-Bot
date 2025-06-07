@@ -327,54 +327,6 @@ class Poll(commands.Cog):
         embed.set_footer(text="Utilisez j!pollresult <ID> pour voir les résultats")
         await ctx.send(embed=embed)
 
-    @commands.command(name="pollhelp", aliases=["aideondage"])
-    async def poll_help(self, ctx):
-        """Guide d'utilisation des sondages"""
-        embed = discord.Embed(
-            title="🗳️ Guide des Sondages",
-            description="Créez et gérez des sondages interactifs !",
-            color=0x9b59b6
-        )
-
-        embed.add_field(
-            name="📝 Créer un Sondage",
-            value="`j!poll \"Titre\" \"Option 1\" \"Option 2\" ...`\n"
-                  "Exemple: `j!poll \"Pizza préférée?\" \"Margherita\" \"Pepperoni\" \"4 Fromages\"`",
-            inline=False
-        )
-
-        embed.add_field(
-            name="⚡ Sondage Rapide",
-            value="`j!quickpoll <question>`\n"
-                  "Exemple: `j!quickpoll Aimez-vous ce bot ?`",
-            inline=False
-        )
-
-        embed.add_field(
-            name="📊 Gestion",
-            value="`j!pollresult <ID>` - Voir les résultats\n"
-                  "`j!closepoll <ID>` - Fermer un sondage\n"
-                  "`j!mypolls` - Vos sondages actifs",
-            inline=False
-        )
-
-        embed.add_field(
-            name="🎁 Récompenses",
-            value="• Créer un sondage: **+10 points**\n"
-                  "• Sondage rapide: **+5 points**\n"
-                  "• Voter: **+1 point**",
-            inline=False
-        )
-
-        embed.add_field(
-            name="💡 Conseils",
-            value="• Maximum 10 options par sondage\n"
-                  "• Utilisez des guillemets pour les titres/options\n"
-                  "• Les sondages restent actifs jusqu'à fermeture manuelle",
-            inline=False
-        )
-
-        await ctx.send(embed=embed)
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):

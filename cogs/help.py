@@ -13,7 +13,7 @@ class Help(commands.Cog):
         except FileNotFoundError:
             return {}
 
-    @commands.command(name="alaide")
+    @commands.command(name="aide")
     async def help_command(self, ctx):
         """Commande d'aide principale"""
         embed = discord.Embed(
@@ -26,409 +26,523 @@ class Help(commands.Cog):
         
         embed.add_field(
             name="🎰 Casino & Jeux",
-            value="`j!casino` - Tous les jeux de casino\n"
-                  "`j!games` - Jeux fun et mini-jeux",
+            value="`j!casinohelp` - Tous les jeux de casino\n"
+                  "`j!funhelp` - Jeux fun et mini-jeux",
             inline=True
         )
         
         embed.add_field(
             name="💰 Économie & Shop",
-            value="`j!eco` - Système économique\n"
-                  "`j!shop` - Boutique et achats",
+            value="`j!ecohelp` - Système économique\n"
+                  "`j!shophelp` - Boutique et achats",
             inline=True
         )
         
         embed.add_field(
             name="🤖 Gestion du Bot",
-            value="`j!botcmds` - Personnaliser le bot\n"
-                  "`j!presets` - Statuts pré-définis",
+            value="`j!bothelp` - Personnaliser le bot\n"
+                  "`j!presetshelp` - Statuts pré-définis",
             inline=True
         )
         
         embed.add_field(
             name="🛠️ Modération & Utilitaires",
-            value="`j!mod` - Commandes de modération\n"
-                  "`j!utils` - Outils utilitaires",
+            value="`j!modhelp` - Commandes de modération\n"
+                  "`j!utilshelp` - Outils utilitaires",
             inline=True
         )
         
         embed.add_field(
-            name="📊 Statistiques & Infos",
-            value="`j!stats` - Vos statistiques\n"
-                  "`j!info` - Infos sur le bot",
+            name="📊 Statistiques & Classements",
+            value="`j!statshelp` - Stats et leaderboards\n"
+                  "`j!infohelp` - Infos serveur/utilisateur",
             inline=True
         )
         
         embed.add_field(
-            name="🎪 Fun & Divertissement",
-            value="`j!fun` - Commandes amusantes\n"
-                  "`j!random` - Générateurs aléatoires",
+            name="🎪 Divers & Sondages",
+            value="`j!pollhelp` - Système de sondages\n"
+                  "`j!mischelp` - Commandes diverses",
+            inline=True
+        )
+        
+        # Quickstart
+        embed.add_field(
+            name="⚡ Démarrage Express",
+            value="```\n"
+                  "j!daily     → Bonus quotidien (1000 pts)\n"
+                  "j!slot 100  → Premier jeu de casino\n"
+                  "j!balance   → Voir vos points\n"
+                  "j!shop      → Découvrir la boutique\n"
+                  "```",
+            inline=False
+        )
+        
+        # Stats du bot
+        embed.add_field(
+            name="📈 Statistiques du Bot",
+            value=f"🏆 Serveurs: {len(self.bot.guilds)}\n"
+                  f"👥 Utilisateurs: {len(self.bot.users)}\n"
+                  f"⚡ Latence: {round(self.bot.latency * 1000)}ms",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🔗 Liens Utiles",
+            value="[Support](https://discord.gg/votre-serveur) • "
+                  "[Documentation](https://votre-site.com) • "
+                  "[GitHub](https://github.com/votre-repo)",
             inline=True
         )
         
         embed.set_footer(
-            text="💡 Astuce : Utilisez j!help <catégorie> pour plus de détails",
+            text="💡 Conseil: Tapez la commande d'aide spécifique pour plus de détails !",
             icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None
         )
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="casino")
+    @commands.command(name="casinohelp")
     async def casino_help(self, ctx):
         """Aide pour les jeux de casino"""
         embed = discord.Embed(
-            title="🎰 JackBot Casino - Guide Complet",
-            description="**Le meilleur casino Discord !** 🎉\n"
-                       "Tentez votre chance et gagnez gros !",
-            color=0xff6b6b
+            title="🎰 Casino - Guide des Jeux",
+            description="Tentez votre chance avec nos jeux de casino !",
+            color=0xe74c3c
         )
         
-        # Jeux principaux
         embed.add_field(
             name="🎰 Machines à Sous",
-            value="```css\n"
-                  "j!slots <mise>        • Machine classique\n"
-                  "j!megaslots <mise>    • Jackpot géant\n"
-                  "j!fruitslots <mise>   • Thème fruité\n"
-                  "```",
+            value="`j!slot <mise>` - Machine à sous classique\n"
+                  "`j!megaslot <mise>` - Jackpot géant\n"
+                  "`j!fruitslot <mise>` - Fruits tropicaux",
             inline=False
         )
         
-        # Jeux de cartes
         embed.add_field(
             name="🃏 Jeux de Cartes",
-            value="```css\n"
-                  "j!blackjack <mise>    • 21 classique\n"
-                  "j!poker <mise>        • Texas Hold'em\n"
-                  "j!baccarat <mise>     • Jeu de banque\n"
-                  "```",
+            value="`j!blackjack <mise>` - 21 contre le dealer\n"
+                  "`j!poker <mise>` - Poker à 5 cartes\n"
+                  "`j!baccarat <mise>` - Jeu royal",
             inline=False
         )
         
-        # Jeux de hasard
         embed.add_field(
             name="🎲 Jeux de Hasard",
-            value="```css\n"
-                  "j!roulette <mise> <n> • Roulette européenne\n"
-                  "j!coinflip <mise>     • Pile ou face\n"
-                  "j!dice <mise> <n>     • Lancer de dés\n"
-                  "j!crash <mise>        • Multiplicateur risqué\n"
-                  "j!plinko <mise>       • Boules et obstacles\n"
-                  "```",
+            value="`j!roulette <mise> <couleur/nombre>` - Roulette européenne\n"
+                  "`j!diceroll <mise>` - Lancé de dés\n"
+                  "`j!coinflip <mise> <pile/face>` - Pile ou face",
             inline=False
         )
         
-        # Jeux spéciaux
         embed.add_field(
-            name="🎪 Jeux Spéciaux",
-            value="```css\n"
-                  "j!limbo <mise> <mult> • Limbo risqué\n"
-                  "j!mines <mise> <nb>   • Démineur interactif\n"
-                  "j!wheel <mise>        • Roue de la fortune\n"
-                  "j!lottery             • Loterie communautaire\n"
-                  "```",
+            name="📈 Trading & Finance",
+            value="`j!crash <mise>` - Graphique qui crash\n"
+                  "`j!limbo <mise> <multiplicateur>` - Risque extrême\n"
+                  "`j!stocks` - Bourse en temps réel",
             inline=False
         )
         
-        # Bonus
         embed.add_field(
-            name="🎁 Bonus & Récompenses",
-            value="🍋 `j!daily` - **1000 pts** quotidiens\n"
-                  "🍌 `j!weekly` - **5000 pts** hebdomadaires\n"
-                  "🎰 `j!casinostats` - Vos statistiques\n"
-                  "🏆 `j!leaderboard casino` - Top joueurs",
-            inline=True
-        )
-        
-        # Fonctionnalités spéciales
-        embed.add_field(
-            name="✨ Fonctionnalités Spéciales",
-            value="🎬 **Animations fluides** pour chaque jeu\n"
-                  "⚡ **Interactions temps réel** (boutons, réactions)\n"
-                  "🎨 **Graphiques dynamiques** selon les gains\n"
-                  "🔥 **Effets visuels** pour les gros gains",
-            inline=True
-        )
-        
-        # Conseils
-        embed.add_field(
-            name="💡 Conseils Pro",
-            value="💰 Commencez avec des petites mises\n"
-                  "📊 Consultez vos stats régulièrement\n"
-                  "🎯 Fixez-vous des limites\n"
-                  "🍀 La chance sourit aux audacieux !",
+            name="💡 Conseils",
+            value="• Commencez avec de petites mises\n"
+                  "• Gérez votre bankroll intelligemment\n"
+                  "• Les gains dépendent de votre mise\n"
+                  "• Utilisez `j!casinostats` pour vos stats",
             inline=False
         )
         
-        embed.set_footer(
-            text="🎮 Jouez responsable • Amusez-vous bien !",
-            icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None
+        embed.add_field(
+            name="🏆 Récompenses",
+            value="**Jackpots:** Jusqu'à 1,000,000 points !\n"
+                  "**Bonus quotidien:** 1,000 points avec j!daily\n"
+                  "**Multiplicateurs:** Jusqu'à x50 sur certains jeux",
+            inline=False
         )
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="eco", aliases=["economy", "economie"])
+    @commands.command(name="ecohelp")
     async def economy_help(self, ctx):
         """Aide pour le système économique"""
-        user_data = self.load_user_data()
-        user_points = user_data.get(str(ctx.author.id), {}).get('points', 0)
-        
         embed = discord.Embed(
-            title="💰 Système Économique JackBot",
-            description="Gérez vos points et votre fortune !",
-            color=0x2ecc71
+            title="💰 Économie - Guide Complet",
+            description="Gérez vos points et votre richesse !",
+            color=0xf39c12
         )
         
         embed.add_field(
-            name="💳 Gestion Points",
-            value="`j!balance` / `j!bal` - Voir vos points\n"
-                  "`j!pay <user> <montant>` - Transférer des points\n"
-                  "`j!gift <user> <montant>` - Faire un cadeau",
+            name="💳 Gestion de Base",
+            value="`j!balance` - Voir vos points\n"
+                  "`j!pay <@user> <montant>` - Transférer des points\n"
+                  "`j!profile` - Votre profil complet",
             inline=False
         )
         
         embed.add_field(
-            name="🎁 Récompenses Quotidiennes",
-            value="`j!daily` - 1,000 pts par jour\n"
-                  "`j!weekly` - 5,000 pts par semaine\n"
-                  "`j!monthly` - 20,000 pts par mois\n"
-                  "`j!streak` - Voir votre série",
+            name="💼 Gains Quotidiens",
+            value="`j!daily` - Bonus quotidien (1,000 pts)\n"
+                  "`j!weekly` - Bonus hebdomadaire (7,500 pts)\n"
+                  "`j!work` - Travailler (50-500 pts)",
             inline=False
         )
         
         embed.add_field(
-            name="💼 Travail & Missions",
-            value="`j!work` - Travailler pour des points\n"
-                  "`j!mission` - Missions spéciales\n"
-                  "`j!invest <montant>` - Investissements",
+            name="📈 Investissements",
+            value="`j!invest <montant>` - Investir en bourse\n"
+                  "`j!portfolio` - Voir vos investissements\n"
+                  "`j!market` - État du marché",
             inline=False
         )
         
         embed.add_field(
-            name="🏆 Classements",
-            value="`j!leaderboard` - Top des plus riches\n"
-                  "`j!rank` - Votre classement\n"
-                  "`j!compare <user>` - Comparer fortunes",
+            name="🎯 Objectifs & Achievements",
+            value="`j!achievements` - Vos succès débloqués\n"
+                  "`j!goals` - Objectifs à atteindre\n"
+                  "`j!progress` - Votre progression",
             inline=False
         )
         
         embed.add_field(
-            name="💰 Vos Points Actuels",
-            value=f"**{user_points:,} points**",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="📊 Moyens de Gagner",
-            value="🎰 Jeux de casino\n💬 Messages (+0.1 pt)\n🎯 Missions quotidiennes\n💼 Travail régulier",
-            inline=True
+            name="💡 Stratégies",
+            value="• Récupérez vos bonus quotidiens\n"
+                  "• Diversifiez vos sources de revenus\n"
+                  "• Investissez une partie de vos gains\n"
+                  "• Participez aux événements spéciaux",
+            inline=False
         )
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="shop", aliases=["boutique", "store"])
+    @commands.command(name="shophelp")
     async def shop_help(self, ctx):
         """Aide pour la boutique"""
         embed = discord.Embed(
-            title="🛒 Boutique JackBot",
-            description="Dépensez vos points pour des récompenses !",
+            title="🛍️ Boutique - Guide d'Achat",
+            description="Dépensez vos points dans notre boutique exclusive !",
             color=0x9b59b6
         )
         
         embed.add_field(
-            name="🛍️ Commandes de Base",
-            value="`j!shop` - Voir tous les articles\n"
-                  "`j!buy <item>` - Acheter un article\n"
+            name="🛒 Navigation",
+            value="`j!shop` - Voir tous les items\n"
+                  "`j!buy <item>` - Acheter un item\n"
                   "`j!inventory` - Votre inventaire",
             inline=False
         )
         
         embed.add_field(
-            name="🏷️ Rôles Spéciaux",
-            value="👑 **VIP** - 10,000 pts\n"
-                  "💎 **Premium** - 25,000 pts\n"
-                  "🔥 **Legend** - 50,000 pts\n"
-                  "🎭 **Parrain Mafia** - 75,000 pts",
-            inline=True
+            name="🎭 Items de Rôle",
+            value="• **VIP Access** - Salons exclusifs\n"
+                  "• **Color Master** - Couleur personnalisée\n"
+                  "• **Shérif** - Pouvoirs de modération temporaires",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🔧 Items de Commande",
+            value="• **Message Anonyme** - Envoyer un message secret\n"
+                  "• **Changeur de Pseudo** - Modifier le pseudo de quelqu'un\n"
+                  "• **Notification Troll** - Spam friendly",
+            inline=False
         )
         
         embed.add_field(
             name="🤖 Personnalisation Bot",
-            value="🖼️ **Avatar Changer** - 5,000 pts\n"
-                  "🏷️ **Name Changer** - 7,500 pts\n"
-                  "🎮 **Custom Status** - 3,500 pts\n"
-                  "⭐ **Premium Status** - 6,000 pts",
-            inline=True
+            value="• **Custom Avatar** - Changer l'avatar du bot (6h)\n"
+                  "• **Custom Name** - Changer le nom du bot (6h)\n" 
+                  "• **Custom Status** - Statut personnalisé (6h/12h)",
+            inline=False
         )
         
         embed.add_field(
-            name="🎪 Cosmétiques",
-            value="🎨 Couleurs de profil personnalisées\n"
-                  "🏆 Titres exclusifs\n"
-                  "✨ Effets spéciaux\n"
-                  "🎭 Emojis personnalisés",
+            name="🎁 Items de Buff",
+            value="• **Doubleur de Mise** - Double automatiquement\n"
+                  "• **Bouclier Anti-Vol** - Protection 48h\n"
+                  "• **Lucky Charm** - +25% de chance de gain",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="💰 Prix Indicatifs",
+            value="**Commandes:** 750-3,000 pts\n"
+                  "**Rôles:** 3,000-15,000 pts\n"
+                  "**Bot:** 3,500-7,500 pts\n"
+                  "**Buffs:** 1,800-5,000 pts",
             inline=False
         )
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="botcmds", aliases=["botcommands"])
-    async def management_help(self, ctx):
-        """Affiche les commandes de gestion du bot"""
+    @commands.command(name="bothelp")
+    async def bot_management_help(self, ctx):
+        """Aide pour la gestion du bot"""
         embed = discord.Embed(
-            title="🤖 Commandes de Gestion du Bot",
-            description="Personnalisez l'apparence du bot avec vos points !",
-            color=0x3498db
+            title="🤖 Gestion du Bot - Personnalisation",
+            description="Personnalisez l'apparence et le comportement du bot !",
+            color=0xe67e22
         )
         
         embed.add_field(
-            name="🖼️ Gestion Avatar",
-            value="`j!avatar <URL>` - Changer l'avatar (5,000 pts)\n"
-                  "`j!avatar` + image jointe - Avec fichier\n"
-                  "`j!reset_avatar` - Remettre par défaut (1,000 pts)",
+            name="🖼️ Avatar",
+            value="`j!avatar <url>` - Changer l'avatar (5,000 pts)\n"
+                  "Durée: 6 heures | Vous pouvez joindre une image",
             inline=False
         )
         
         embed.add_field(
-            name="🏷️ Gestion Nom", 
+            name="🏷️ Nom",
             value="`j!name <nouveau_nom>` - Changer le nom (7,500 pts)\n"
-                  "⚠️ Limité par les restrictions Discord",
+                  "Durée: 6 heures | Max 32 caractères",
             inline=False
         )
         
         embed.add_field(
-            name="🎮 Gestion Statut",
+            name="🎮 Statut",
             value="`j!status <type> <texte>` - Changer le statut\n"
-                  "• **Standard**: 3,500 pts (6h)\n"
-                  "• **Premium**: 6,000 pts (12h)\n"
-                  "`j!reset_status` - Reset statut (500 pts)\n"
-                  "`j!presets` - Statuts pré-définis populaires",
+                  "`j!reset_status` - Remettre par défaut (500 pts)\n"
+                  "`j!presets` - Statuts populaires pré-faits",
             inline=False
         )
         
         embed.add_field(
-            name="📊 Informations",
+            name="🎭 Types de Statut",
+            value="**Standard (3,500 pts - 6h):**\n"
+                  "• `playing` - Joue à...\n• `listening` - Écoute...\n• `watching` - Regarde...\n\n"
+                  "**Premium (6,000 pts - 12h):**\n"
+                  "• `streaming` - Streame...\n• `competing` - Participe à...",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📊 Monitoring",
             value="`j!bot_status` - Voir toutes les modifications actives\n"
-                  "Affiche avatar, nom et statut temporaires",
+                  "• Qui a fait quoi\n• Temps restant\n• Valeurs actuelles vs originales",
             inline=False
         )
         
         embed.add_field(
-            name="🎮 Types de Statut",
-            value="🎮 `playing` - Joue à...\n🎵 `listening` - Écoute...\n"
-                  "📺 `watching` - Regarde...\n🔴 `streaming` - Streame...\n"
-                  "🏆 `competing` - Participe à...",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="💡 Exemples",
-            value="```\nj!status playing Minecraft\nj!status listening to Spotify\nj!status watching Netflix\n```",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="⏰ Durées",
-            value="• Toutes les modifications sont **temporaires**\n"
-                  "• Restoration automatique après expiration\n"
-                  "• Surveillance continue en arrière-plan",
+            name="⚠️ Notes Importantes",
+            value="• Toutes les modifications sont temporaires\n"
+                  "• Restauration automatique après expiration\n" 
+                  "• Cooldowns anti-spam intégrés\n"
+                  "• Remboursement automatique en cas d'erreur",
             inline=False
         )
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="presets", aliases=["status_presets"])
-    async def status_presets(self, ctx):
-        """Affiche des statuts pré-définis populaires"""
+    @commands.command(name="presetshelp")
+    async def presets_help(self, ctx):
+        """Aide pour les statuts pré-définis"""
         embed = discord.Embed(
             title="🎮 Statuts Pré-définis Populaires",
-            description="Copiez-collez ces commandes populaires :",
-            color=0x3498db
+            description="Copiez-collez ces commandes directement !",
+            color=0x9b59b6
+        )
+
+        embed.add_field(
+            name="🎮 Gaming (Standard - 6h)",
+            value="```\nj!status playing Minecraft\n"
+                  "j!status playing Among Us\n"
+                  "j!status playing Valorant\n"
+                  "j!status playing Genshin Impact```",
+            inline=False
         )
         
         embed.add_field(
-            name="🎮 Gaming",
-            value="`j!status playing Minecraft`\n"
-                  "`j!status playing Among Us`\n"
-                  "`j!status playing Fortnite`\n"
-                  "`j!status competing in Ranked`",
-            inline=True
+            name="🎵 Musique (Standard - 6h)",
+            value="```\nj!status listening to Spotify\n"
+                  "j!status listening to Lofi Hip Hop\n"
+                  "j!status listening to vos playlistes\n"
+                  "j!status listening to la radio```",
+            inline=False
         )
         
         embed.add_field(
-            name="🎵 Musique",
-            value="`j!status listening to Spotify`\n"
-                  "`j!status listening to Lo-Fi Hip Hop`\n"
-                  "`j!status listening to your requests`\n"
-                  "`j!status listening to the radio`",
-            inline=True
+            name="📺 Divertissement (Standard - 6h)", 
+            value="```\nj!status watching Netflix\n"
+                  "j!status watching YouTube\n"
+                  "j!status watching les membres\n"
+                  "j!status watching du contenu```",
+            inline=False
         )
         
         embed.add_field(
-            name="📺 Divertissement",
-            value="`j!status watching Netflix`\n"
-                  "`j!status watching YouTube`\n"
-                  "`j!status watching the server`\n"
-                  "`j!status watching movies`",
-            inline=True
+            name="🟣 Streaming (Premium - 12h)",
+            value="```\nj!status streaming Just Chatting\n"
+                  "j!status streaming Gaming\n"
+                  "j!status streaming Music\n"
+                  "j!status streaming Art```",
+            inline=False
         )
         
         embed.add_field(
-            name="🤖 Bot",
-            value="`j!status playing with commands`\n"
-                  "`j!status watching over the server`\n"
-                  "`j!status listening to your problems`\n"
-                  "`j!status competing for your attention`",
-            inline=True
+            name="🏆 Compétition (Premium - 12h)",
+            value="```\nj!status competing dans Ranked\n"
+                  "j!status competing pour l'attention\n"
+                  "j!status competing dans un tournoi\n"
+                  "j!status competing contre les bugs```",
+            inline=False
         )
         
         embed.add_field(
-            name="🔥 Populaires",
-            value="`j!status playing Casino Games`\n"
-                  "`j!status watching Discord`\n"
-                  "`j!status listening to your bets`\n"
-                  "`j!status streaming Just Chatting`",
-            inline=True
+            name="😎 Fun & Créatif",
+            value="```\nj!status playing avec mes circuits\n"
+                  "j!status watching le chaos du serveur\n"
+                  "j!status listening to vos conversations\n"
+                  "j!status competing contre SkyNet```",
+            inline=False
         )
         
         embed.add_field(
-            name="😂 Fun",
-            value="`j!status playing hide and seek`\n"
-                  "`j!status watching paint dry`\n"
-                  "`j!status listening to silence`\n"
-                  "`j!status competing with humans`",
-            inline=True
-        )
-        
-        embed.set_footer(
-            text="💰 Prix: Standard (6h) = 3,500 pts • Premium (12h) = 6,000 pts"
+            name="💰 Coûts",
+            value="**Standard:** 3,500 points (6 heures)\n"
+                  "**Premium:** 6,000 points (12 heures)\n"
+                  "**Reset:** 500 points",
+            inline=False
         )
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="mod", aliases=["moderation"])
-    async def moderation_help(self, ctx):
-        """Aide pour les commandes de modération"""
+    @commands.command(name="funhelp")
+    async def fun_help(self, ctx):
+        """Aide pour les jeux fun"""
         embed = discord.Embed(
-            title="🛠️ Commandes de Modération",
-            description="Outils pour gérer votre serveur",
+            title="🎪 Jeux Fun - Divertissement",
+            description="Amusez-vous avec ces mini-jeux !",
+            color=0x1abc9c
+        )
+        
+        embed.add_field(
+            name="🎲 Jeux de Hasard",
+            value="`j!8ball <question>` - Boule magique\n"
+                  "`j!flip` - Pile ou face\n"
+                  "`j!dice` - Lancer de dé\n"
+                  "`j!rps <choix>` - Pierre-papier-ciseaux",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="😄 Interactions Sociales",
+            value="`j!hug <@user>` - Faire un câlin\n"
+                  "`j!highfive <@user>` - Tape m'en cinq\n"
+                  "`j!pat <@user>` - Caresser la tête\n"
+                  "`j!poke <@user>` - Piquer quelqu'un",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="😂 Humour",
+            value="`j!joke` - Blague aléatoire\n"
+                  "`j!meme` - Mème du jour\n"
+                  "`j!fact` - Fait intéressant\n"
+                  "`j!quote` - Citation inspirante",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎯 Mini-Jeux",
+            value="`j!trivia` - Questions culture générale\n"
+                  "`j!riddle` - Énigmes à résoudre\n"
+                  "`j!wordscramble` - Mots mélangés\n"
+                  "`j!mathquiz` - Quiz de maths",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎁 Récompenses",
+            value="Gagnez entre 5-50 points selon le jeu !\n"
+                  "Bonus spéciaux pour les bonnes réponses consécutives.",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
+
+    @commands.command(name="pollhelp")
+    async def poll_help(self, ctx):
+        """Aide pour les sondages"""
+        embed = discord.Embed(
+            title="📊 Sondages - Guide Complet",
+            description="Créez et gérez des sondages interactifs !",
+            color=0x3498db
+        )
+        
+        embed.add_field(
+            name="📝 Création",
+            value="`j!poll \"Titre\" \"Option 1\" \"Option 2\" ...` - Sondage complet\n"
+                  "`j!quickpoll \"Question\"` - Sondage oui/non rapide\n"
+                  "Maximum 10 options par sondage",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🔧 Gestion",
+            value="`j!closepoll <ID>` - Fermer un sondage\n"
+                  "`j!mypolls` - Vos sondages actifs\n"
+                  "`j!pollresults <ID>` - Résultats détaillés",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📊 Fonctionnalités",
+            value="• Votes par réactions emoji\n"
+                  "• Résultats en temps réel avec barres\n"
+                  "• Système anti-vote multiple\n"
+                  "• Historique des sondages",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎁 Récompenses",
+            value="• Créer un sondage: **+10 points**\n"
+                  "• Sondage rapide: **+5 points**\n"
+                  "• Voter: **+1 point**",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="💡 Conseils",
+            value="• Utilisez des guillemets pour les options avec espaces\n"
+                  "• Les sondages restent actifs jusqu'à fermeture manuelle\n"
+                  "• Seul le créateur peut fermer son sondage",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
+
+    @commands.command(name="modhelp")
+    async def moderation_help(self, ctx):
+        """Aide pour la modération"""
+        if not ctx.author.guild_permissions.manage_messages:
+            embed = discord.Embed(
+                title="❌ Accès Refusé",
+                description="Vous devez avoir les permissions de modération pour voir cette aide.",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
+            return
+            
+        embed = discord.Embed(
+            title="🛠️ Modération - Guide Complet",
+            description="Outils de modération pour maintenir l'ordre !",
             color=0xe74c3c
         )
         
         embed.add_field(
-            name="👮 Actions de Modération",
-            value="`j!kick <user>` - Expulser un membre\n"
-                  "`j!ban <user>` - Bannir un membre\n"
-                  "`j!mute <user>` - Rendre muet\n"
-                  "`j!warn <user>` - Avertir un membre",
+            name="👤 Gestion Membres",
+            value="`j!kick <@user> [raison]` - Expulser un membre\n"
+                  "`j!ban <@user> [raison]` - Bannir un membre\n"
+                  "`j!unban <user_id>` - Débannir un membre\n"
+                  "`j!timeout <@user> <durée>` - Timeout temporaire",
             inline=False
         )
         
         embed.add_field(
-            name="🧹 Nettoyage",
+            name="💬 Gestion Messages",
             value="`j!clear <nombre>` - Supprimer des messages\n"
-                  "`j!purge <user>` - Nettoyer les messages d'un user\n"
-                  "`j!clean` - Nettoyer les messages du bot",
+                  "`j!purge <@user> <nombre>` - Supprimer messages d'un user\n"
+                  "`j!slowmode <secondes>` - Mode lent du salon",
             inline=False
         )
         
@@ -436,195 +550,429 @@ class Help(commands.Cog):
             name="🔒 Gestion Salon",
             value="`j!lock` - Verrouiller le salon\n"
                   "`j!unlock` - Déverrouiller le salon\n"
-                  "`j!slowmode <temps>` - Mode lent",
+                  "`j!lockdown` - Verrouillage serveur d'urgence",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="⚠️ Avertissements",
+            value="`j!warn <@user> <raison>` - Donner un avertissement\n"
+                  "`j!warnings <@user>` - Voir les avertissements\n"
+                  "`j!clearwarns <@user>` - Effacer les avertissements",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📋 Permissions Requises",
+            value="• Kick: `Expulser des membres`\n"
+                  "• Ban: `Bannir des membres`\n"
+                  "• Clear: `Gérer les messages`\n"
+                  "• Lock: `Gérer les salons`",
             inline=False
         )
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="utils", aliases=["utilitaires", "utilities"])
-    async def utilities_help(self, ctx):
-        """Aide pour les outils utilitaires"""
+    @commands.command(name="utilshelp")
+    async def utils_help(self, ctx):
+        """Aide pour les utilitaires"""
         embed = discord.Embed(
-            title="🔧 Outils Utilitaires",
-            description="Commandes pratiques pour tous",
-            color=0x34495e
+            title="🔧 Utilitaires - Outils Pratiques",
+            description="Commandes utiles pour tous !",
+            color=0x95a5a6
         )
         
         embed.add_field(
-            name="👤 Informations Utilisateur",
-            value="`j!userinfo <user>` - Infos sur un membre\n"
-                  "`j!avatar <user>` - Avatar d'un user\n"
-                  "`j!profile` - Votre profil complet",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🖥️ Informations Serveur",
-            value="`j!serverinfo` - Infos du serveur\n"
-                  "`j!membercount` - Nombre de membres\n"
-                  "`j!channels` - Liste des salons",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="⏰ Temps & Date",
-            value="`j!time` - Heure actuelle\n"
-                  "`j!uptime` - Temps de fonctionnement\n"
+            name="ℹ️ Informations",
+            value="`j!userinfo <@user>` - Infos sur un utilisateur\n"
+                  "`j!serverinfo` - Infos sur le serveur\n"
+                  "`j!botinfo` - Informations sur le bot\n"
                   "`j!ping` - Latence du bot",
             inline=False
         )
         
+        embed.add_field(
+            name="🕒 Temps & Date",
+            value="`j!time` - Heure actuelle\n"
+                  "`j!timezone <zone>` - Heure dans une timezone\n"
+                  "`j!uptime` - Temps d'activité du bot",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🔢 Calculs",
+            value="`j!calc <expression>` - Calculatrice\n" 
+                  "`j!convert <valeur> <de> <vers>` - Convertisseur\n"
+                  "`j!random <min> <max>` - Nombre aléatoire",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🔍 Recherche",
+            value="`j!weather <ville>` - Météo\n"
+                  "`j!translate <lang> <texte>` - Traducteur\n"
+                  "`j!wiki <terme>` - Recherche Wikipedia",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🛠️ Outils Serveur",
+            value="`j!avatar <@user>` - Avatar d'un utilisateur\n"
+                  "`j!membercount` - Nombre de membres\n"
+                  "`j!roleinfo <@role>` - Infos sur un rôle",
+            inline=False
+        )
+        
         await ctx.send(embed=embed)
 
-    @commands.command(name="fun", aliases=["amusant"])
-    async def fun_help(self, ctx):
-        """Aide pour les commandes amusantes"""
+    @commands.command(name="statshelp")
+    async def stats_help(self, ctx):
+        """Aide pour les statistiques"""
         embed = discord.Embed(
-            title="🎪 Commandes Fun & Divertissement",
-            description="Pour s'amuser et rigoler !",
+            title="📊 Statistiques - Classements & Analyses",
+            description="Suivez vos performances et comparez-vous !",
             color=0xf39c12
         )
         
         embed.add_field(
-            name="😂 Réactions",
-            value="`j!hug <user>` - Faire un câlin\n"
-                  "`j!kiss <user>` - Faire un bisou\n"
-                  "`j!slap <user>` - Gifle amicale\n"
-                  "`j!pat <user>` - Caresser la tête",
+            name="🏆 Classements",
+            value="`j!leaderboard` - Top 10 des plus riches\n"
+                  "`j!casinoleaderboard` - Top joueurs casino\n"
+                  "`j!weeklytop` - Top de la semaine\n"
+                  "`j!monthlytop` - Top du mois",
             inline=False
         )
         
         embed.add_field(
-            name="🎲 Jeux Rapides",
-            value="`j!8ball <question>` - Boule magique\n"
-                  "`j!flip` - Pile ou face\n"
-                  "`j!roll` - Lancer de dé\n"
-                  "`j!choose <choix1> <choix2>` - Choisir",
+            name="📈 Stats Personnelles",
+            value="`j!mystats` - Vos statistiques complètes\n"
+                  "`j!casinostats` - Vos stats de casino\n"
+                  "`j!rank` - Votre rang actuel\n"
+                  "`j!progress` - Votre progression",
             inline=False
         )
         
         embed.add_field(
-            name="🤖 IA Fun",
-            value="`j!joke` - Blague aléatoire\n"
-                  "`j!quote` - Citation inspirante\n"
-                  "`j!fact` - Fait aléatoire\n"
-                  "`j!meme` - Meme du jour",
+            name="🎰 Analyses Casino",
+            value="`j!winrate` - Taux de victoire par jeu\n"
+                  "`j!biggestwins` - Vos plus gros gains\n"
+                  "`j!luckyfactor` - Votre facteur chance\n"
+                  "`j!gamestats <jeu>` - Stats pour un jeu spécifique",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📊 Stats Serveur",
+            value="`j!serverstats` - Statistiques du serveur\n"
+                  "`j!activity` - Activité des membres\n"
+                  "`j!topgamers` - Joueurs les plus actifs",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎯 Objectifs",
+            value="`j!achievements` - Vos succès débloqués\n"
+                  "`j!goals` - Objectifs à atteindre\n"
+                  "`j!rewards` - Récompenses disponibles",
             inline=False
         )
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="stats", aliases=["statistiques"])
-    async def stats_help(self, ctx):
-        """Aide pour les statistiques"""
+    @commands.command(name="infohelp")
+    async def info_help(self, ctx):
+        """Aide pour les informations"""
         embed = discord.Embed(
-            title="📊 Statistiques & Données",
-            description="Suivez vos performances !",
-            color=0x1abc9c
+            title="ℹ️ Informations - Guide des Commandes",
+            description="Toutes les informations dont vous avez besoin !",
+            color=0x3498db
         )
         
         embed.add_field(
-            name="🎰 Stats Casino",
-            value="`j!casinostats` - Vos stats de jeux\n"
-                  "`j!gamestats <jeu>` - Stats d'un jeu spécifique\n"
-                  "`j!winrate` - Taux de victoire",
+            name="👤 Utilisateurs",
+            value="`j!whois <@user>` - Profil détaillé d'un membre\n"
+                  "`j!joined <@user>` - Date d'arrivée sur le serveur\n"
+                  "`j!created <@user>` - Date de création du compte",
             inline=False
         )
         
         embed.add_field(
-            name="🏆 Classements", 
-            value="`j!leaderboard` - Top général\n"
-                  "`j!leaderboard casino` - Top casino\n"
-                  "`j!rank` - Votre position",
+            name="🏠 Serveur",
+            value="`j!server` - Informations complètes du serveur\n"
+                  "`j!channels` - Liste des salons\n"
+                  "`j!roles` - Liste des rôles\n"
+                  "`j!emojis` - Émojis personnalisés",
             inline=False
         )
         
         embed.add_field(
-            name="📈 Progression",
-            value="`j!progress` - Votre évolution\n"
-                  "`j!history` - Historique des gains\n"
-                  "`j!achievements` - Vos succès",
+            name="🤖 Bot",
+            value="`j!about` - À propos du bot\n"
+                  "`j!version` - Version et changelog\n"
+                  "`j!invite` - Lien d'invitation\n"
+                  "`j!support` - Serveur de support",
+            inline=False
+        )
+        embed.add_field(
+            name="📊 Performances",
+            value="`j!status` - État du bot en temps réel\n"
+                  "`j!performance` - Métriques de performance\n"
+                  "`j!guilds` - Serveurs où est présent le bot\n"
+                  "`j!shardinfo` - Informations sur les shards",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🔗 Permissions",
+            value="`j!perms <@user>` - Permissions d'un utilisateur\n"
+                  "`j!botperms` - Permissions du bot\n"
+                  "`j!checkperms <action>` - Vérifier une permission",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📅 Historique",
+            value="`j!history` - Historique des commandes\n"
+                  "`j!logs` - Logs d'activité récente\n"
+                  "`j!events` - Événements du serveur",
             inline=False
         )
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="info", aliases=["botinfo", "about"])
-    async def info(self, ctx):
-        """Informations sur le bot"""
+    @commands.command(name="mischelp")
+    async def misc_help(self, ctx):
+        """Aide pour les commandes diverses"""
         embed = discord.Embed(
-            title="🤖 JackBot - Informations",
-            description="Le bot casino et divertissement ultime !",
+            title="🎪 Divers - Commandes Variées",
+            description="Toutes les autres fonctionnalités utiles !",
+            color=0xe91e63
+        )
+        
+        embed.add_field(
+            name="🎨 Personnalisation",
+            value="`j!color <couleur>` - Changer votre couleur de rôle\n"
+                  "`j!nickname <pseudo>` - Changer votre surnom\n"
+                  "`j!bio <texte>` - Modifier votre bio personnelle",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🔔 Notifications",
+            value="`j!notify <message>` - Programmer une notification\n"
+                  "`j!reminder <temps> <message>` - Rappel personnalisé\n"
+                  "`j!subscribe <événement>` - S'abonner aux notifications",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="💝 Cadeaux & Social",
+            value="`j!gift <@user> <points>` - Offrir des points\n"
+                  "`j!birthday <date>` - Définir votre anniversaire\n"
+                  "`j!marriage <@user>` - Demander en mariage (RP)",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎯 Événements",
+            value="`j!events` - Événements en cours\n"
+                  "`j!participate <événement>` - Participer\n"
+                  "`j!schedule` - Calendrier des événements",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🔧 Préférences",
+            value="`j!settings` - Vos paramètres personnels\n"
+                  "`j!privacy <niveau>` - Niveau de confidentialité\n"
+                  "`j!language <langue>` - Changer la langue",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📱 Intégrations",
+            value="`j!connect <service>` - Connecter un service externe\n"
+                  "`j!sync` - Synchroniser les données\n"
+                  "`j!backup` - Sauvegarder vos données",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
+
+    @commands.command(name="commandlist")
+    async def command_list(self, ctx):
+        """Liste complète de toutes les commandes disponibles"""
+        embed = discord.Embed(
+            title="📋 Liste Complète des Commandes",
+            description="Toutes les commandes disponibles organisées par catégorie",
             color=0x9b59b6
         )
         
+        # Casino & Jeux
         embed.add_field(
-            name="📊 Statistiques",
-            value=f"🏠 **Serveurs :** {len(self.bot.guilds)}\n"
-                  f"👥 **Utilisateurs :** {len(set(self.bot.get_all_members()))}\n"
-                  f"💬 **Commandes :** 50+",
+            name="🎰 Casino",
+            value="```\nslot, megaslot, fruitslot\nblackjack, poker, baccarat\nroulette, diceroll, coinflip\ncrash, limbo, stocks```",
+            inline=True
+        )
+        
+        # Économie
+        embed.add_field(
+            name="💰 Économie",
+            value="```\nbalance, pay, profile\ndaily, weekly, work\ninvest, portfolio, market\nachievements, goals```",
+            inline=True
+        )
+        
+        # Boutique
+        embed.add_field(
+            name="🛍️ Boutique",
+            value="```\nshop, buy, inventory\nuse, gift, trade\nwishlist, catalog```",
+            inline=True
+        )
+        
+        # Bot Management
+        embed.add_field(
+            name="🤖 Bot",
+            value="```\navatar, name, status\nreset_status, presets\nbot_status```",
+            inline=True
+        )
+        
+        # Fun
+        embed.add_field(
+            name="🎪 Fun",
+            value="```\n8ball, flip, dice, rps\nhug, highfive, pat, poke\njoke, meme, fact, quote\ntrivia, riddle, wordscramble```",
+            inline=True
+        )
+        
+        # Sondages
+        embed.add_field(
+            name="📊 Sondages",
+            value="```\npoll, quickpoll\nclosepoll, mypolls\npollresults```",
+            inline=True
+        )
+        
+        # Modération (si autorisé)
+        if ctx.author.guild_permissions.manage_messages:
+            embed.add_field(
+                name="🛠️ Modération",
+                value="```\nkick, ban, unban, timeout\nclear, purge, slowmode\nlock, unlock, lockdown\nwarn, warnings, clearwarns```",
+                inline=True
+            )
+        
+        # Utilitaires
+        embed.add_field(
+            name="🔧 Utilitaires",
+            value="```\nuserinfo, serverinfo, botinfo\ntime, timezone, calc\nweather, translate, wiki\navatar, membercount```",
+            inline=True
+        )
+        
+        # Statistiques
+        embed.add_field(
+            name="📊 Stats",
+            value="```\nleaderboard, casinoleaderboard\nmystats, casinostats, rank\nwinrate, biggestwins\nserverstats, activity```",
             inline=True
         )
         
         embed.add_field(
-            name="⚡ Performance",
-            value=f"🏓 **Ping :** {round(self.bot.latency * 1000)}ms\n"
-                  f"🐍 **Python :** {discord.__version__}\n"
-                  f"🔥 **Uptime :** En ligne",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="🎮 Fonctionnalités",
-            value="🎰 **20+ jeux** de casino\n"
-                  "💰 **Économie** complète\n"
-                  "🛒 **Boutique** interactive\n"
-                  "🤖 **Personnalisation** du bot",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🔗 Liens Utiles",
-            value="[Support Server](https://discord.gg/ton-serveur)\n"
-                  "[Code Source](https://github.com/ton-repo)\n"
-                  "[Documentation](https://ton-docs.com)",
+            name="⚡ Total des Commandes",
+            value=f"**{len([cmd for cmd in self.bot.commands])} commandes** disponibles\n"
+                  f"Utilisez `j!aide` pour l'aide détaillée",
             inline=False
         )
         
         embed.set_footer(
-            text="Développé avec ❤️ pour Discord",
-            icon_url=self.bot.user.avatar.url if self.bot.user.avatar else None
+            text="💡 Utilisez 'j!<catégorie>help' pour plus de détails sur chaque catégorie"
         )
         
         await ctx.send(embed=embed)
 
-    @commands.command(name="commands", aliases=["cmdlist"])
-    async def all_commands(self, ctx):
-        """Liste rapide de toutes les commandes"""
+    @commands.command(name="quickstart")
+    async def quickstart_guide(self, ctx):
+        """Guide de démarrage rapide"""
+        user_data = self.load_user_data()
+        user_id = str(ctx.author.id)
+        
+        # Vérifier si c'est un nouvel utilisateur
+        is_new_user = user_id not in user_data
+        
         embed = discord.Embed(
-            title="📋 Liste Rapide des Commandes",
-            description="Toutes les commandes disponibles",
-            color=0x95a5a6
+            title="⚡ Guide de Démarrage Rapide",
+            description="Bienvenue sur JackBot ! Voici comment commencer :",
+            color=0x00ff00 if is_new_user else 0xffd700
         )
         
-        commands_list = [
-            "**🎰 Casino:** slots, blackjack, roulette, poker, crash, limbo",
-            "**💰 Économie:** balance, daily, weekly, pay, work, invest",
-            "**🛒 Shop:** shop, buy, inventory",
-            "**🤖 Bot:** avatar, name, status, bot_status",
-            "**🛠️ Mod:** kick, ban, mute, clear, lock",
-            "**🔧 Utils:** userinfo, serverinfo, ping, time",
-            "**🎪 Fun:** 8ball, hug, joke, meme, flip",
-            "**📊 Stats:** casinostats, leaderboard, rank, progress"
-        ]
+        if is_new_user:
+            embed.add_field(
+                name="🎉 Nouveau Membre Détecté !",
+                value="Vous recevez **500 points de bienvenue** ! 🎁",
+                inline=False
+            )
         
-        embed.description = "\n".join(commands_list)
         embed.add_field(
-            name="💡 Astuce",
-            value="Utilisez `j!help <catégorie>` pour des infos détaillées !",
+            name="1️⃣ Premiers Pas",
+            value="```\nj!daily     → Récupérez 1000 points quotidiens\n"
+                  "j!balance   → Vérifiez vos points actuels\n"
+                  "j!profile   → Consultez votre profil```",
             inline=False
         )
+        
+        embed.add_field(
+            name="2️⃣ Premier Jeu",
+            value="```\nj!slot 50   → Jouez aux machines à sous\n"
+                  "j!coinflip 25 pile → Pariez sur pile ou face\n"
+                  "j!8ball Vais-je gagner? → Consultez la boule```",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="3️⃣ Découverte",
+            value="```\nj!shop      → Explorez la boutique\n"
+                  "j!leaderboard → Voyez le classement\n"
+                  "j!casinohelp → Guide des jeux complet```",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="4️⃣ Fonctionnalités Avancées",
+            value="```\nj!poll \"Question?\" \"Oui\" \"Non\" → Créez un sondage\n"
+                  "j!mystats   → Vos statistiques complètes\n"
+                  "j!bothelp   → Personnalisez le bot```",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="💡 Conseils Pro",
+            value="• **Récupérez votre bonus quotidien** avec `j!daily`\n"
+                  "• **Commencez avec de petites mises** pour apprendre\n"
+                  "• **Participez aux sondages** pour gagner des points bonus\n"
+                  "• **Échangez avec la communauté** avec `j!pay @user <montant>`\n"
+                  "• **Investissez intelligemment** avec `j!invest`",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🆘 Besoin d'Aide ?",
+            value="• `j!aide` - Menu principal\n"
+                  "• `j!commandlist` - Toutes les commandes\n"
+                  "• `j!support` - Serveur de support\n"
+                  "• Mentionnez un modérateur pour assistance",
+            inline=False
+        )
+        
+        if is_new_user:
+            embed.set_footer(
+                text="🌟 Profitez de votre expérience sur JackBot ! Les 500 points bonus ont été ajoutés."
+            )
+            # Ajouter les points de bienvenue
+            if user_id not in user_data:
+                user_data[user_id] = {'points': 500, 'games_played': 0}
+            else:
+                user_data[user_id]['points'] = user_data[user_id].get('points', 0) + 500
+            self.save_user_data(user_data)
+        else:
+            points = user_data.get(user_id, {}).get('points', 0)
+            embed.set_footer(
+                text=f"💰 Vous avez actuellement {points:,} points • Bonne chance !"
+            )
         
         await ctx.send(embed=embed)
 

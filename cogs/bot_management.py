@@ -574,65 +574,6 @@ class BotManagement(commands.Cog):
         embed.set_thumbnail(url=self.bot.user.avatar.url if self.bot.user.avatar else None)
         await ctx.send(embed=embed)
 
-    @commands.command(name="botcmds", aliases=["bothelp"])
-    async def botcommands_help(self, ctx):
-        """Guide d'aide pour les commandes de gestion du bot"""
-        embed = discord.Embed(
-            title="🤖 Gestion du Bot",
-            description="Personnalisez l'apparence et le comportement du bot !",
-            color=0xe67e22
-        )
-        
-        embed.add_field(
-            name="🖼️ Gestion Avatar", 
-            value="`j!avatar <url>` - Changer l'avatar (5,000 pts)\n"
-                  "Vous pouvez aussi joindre une image directement",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🏷️ Gestion Nom", 
-            value="`j!name <nouveau_nom>` - Changer le nom (7,500 pts)",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🎮 Gestion Statut",
-            value="`j!status <type> <texte>` - Changer le statut\n"
-                  "• Standard: 3,500 pts (6h) • Premium: 6,000 pts (12h)\n"
-                  "`j!reset_status` - Reset statut (500 pts)\n"
-                  "`j!presets` - Statuts pré-définis populaires",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="📊 Informations",
-            value="`j!bot_status` - Voir toutes les modifications actives",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🎮 Types de Statut",
-            value="• `playing` - Joue à... (6h)\n• `listening` - Écoute... (6h)\n"
-                  "• `watching` - Regarde... (6h)\n• `streaming` - Streame... (12h)\n"
-                  "• `competing` - Participe à... (12h)",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="⏰ Durées",
-            value="• Avatar/Nom: **6 heures**\n• Statut standard: **6 heures**\n• Statut premium: **12 heures**",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="💡 Notes Importantes",
-            value="• Les changements sont temporaires\n• Restauration automatique après expiration\n"
-                  "• Cooldowns pour éviter le spam\n• Remboursement en cas d'erreur",
-            inline=False
-        )
-
-        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(BotManagement(bot))
