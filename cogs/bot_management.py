@@ -28,8 +28,12 @@ class BotManagement(commands.Cog):
                 if "status" not in data:
                     data["status"] = None
                 return data
-        except FileNotFoundError:
-            return {"avatar": None, "name": None, "status": None}
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {
+                "avatar": None,
+                "name": None, 
+                "status": None
+            }
 
     def save_temp_changes(self):
         """Sauvegarde les changements temporaires"""
@@ -41,7 +45,7 @@ class BotManagement(commands.Cog):
         try:
             with open('user_data.json', 'r') as f:
                 return json.load(f)
-        except FileNotFoundError:
+        except (FileNotFoundError, json.JSONDecodeError):
             return {}
 
     def save_user_data(self, data):
@@ -49,429 +53,586 @@ class BotManagement(commands.Cog):
         with open('user_data.json', 'w') as f:
             json.dump(data, f, indent=2)
 
-    # ... (garder les méthodes avatar et name existantes) ...
-
-    @commands.command(name="change_status", aliases=["status"])
-    async def change_bot_status(self, ctx, activity_type: str = None, *, status_text: str = None):
-        """Change le statut/rich presence du bot temporairement
-        
-        Types d'activités disponibles :
-        - playing : Joue à ...
-        - listening : Écoute ...
-        - watching : Regarde ...
-        - streaming : Streame ...
-        - competing : Participe à ...
-        """
+    def deduct_user_points(self, user_id, points):
+        """Déduit des points de l'utilisateur"""
         user_data = self.load_user_data()
-        user_id = str(ctx.author.id)
+        user_id = str(user_id)
         
-        # Si aucun argument, afficher l'aide
-        if not activity_type:
-            embed = discord.Embed(
-                title="🎮 Changer le Statut du Bot",
-                description="**Usage :** `j!status <type> <texte>`\n\n"
-                           "**Types disponibles :**\n"
-                           "🎮 `playing` - Joue à ...\n"
-                           "🎵 `listening` - Écoute ...\n"
-                           "📺 `watching` - Regarde ...\n"
-                           "🔴 `streaming` - Streame ...\n"
-                           "🏆 `competing` - Participe à ...\n\n"
-                           "**Exemples :**\n"
-                           "`j!status playing Minecraft`\n"
-                           "`j!status listening de la musique`\n"
-                           "`j!status watching Netflix`",
-                color=0x3498db
-            )
-            embed.add_field(
-                name="💰 Prix",
-                value="**Statut simple :** 3,500 points (6h)\n**Statut premium :** 6,000 points (12h)",
-                inline=False
-            )
-            return await ctx.send(embed=embed)
-
-        if not status_text:
-            return await ctx.send("❌ Veuillez spécifier le texte du statut.")
-
-        # Vérifier le type d'activité
-        activity_types = {
-            'playing': discord.ActivityType.playing,
-            'listening': discord.ActivityType.listening,
-            'watching': discord.ActivityType.watching,
-            'streaming': discord.ActivityType.streaming,
-            'competing': discord.ActivityType.competing
-        }
+        if user_id not in user_data:
+            return False
         
-        if activity_type.lower() not in activity_types:
-            return await ctx.send("❌ Type d'activité invalide. Types disponibles : " + 
-                                ", ".join(activity_types.keys()))
-
-        # Vérifier les points (prix différent selon la durée)
-        user_points = user_data.get(user_id, {}).get('points', 0)
+        if user_data[user_id].get('points', 0) < points:
+            return False
         
-        # Proposer les deux options
-        embed = discord.Embed(
-            title="🎮 Choisir la durée du statut",
-            description=f"**Statut demandé :** {activity_type.title()} {status_text}\n\n"
-                       "Choisissez la durée :",
-            color=0x3498db
-        )
-        embed.add_field(
-            name="⏰ Option 1 - Standard",
-            value="**3,500 points** - 6 heures\n🅰️ Réagissez avec 🅰️",
-            inline=True
-        )
-        embed.add_field(
-            name="⏰ Option 2 - Premium", 
-            value="**6,000 points** - 12 heures\n🅱️ Réagissez avec 🅱️",
-            inline=True
-        )
-        embed.add_field(
-            name="💰 Vos points",
-            value=f"{user_points:,} points",
-            inline=False
-        )
+        user_data[user_id]['points'] -= points
+        self.save_user_data(user_data)
+        return True
 
-        message = await ctx.send(embed=embed)
-        await message.add_reaction('🅰️')
-        await message.add_reaction('🅱️')
-
-        def check(reaction, user):
-            return (user == ctx.author and 
-                   str(reaction.emoji) in ['🅰️', '🅱️'] and 
-                   reaction.message.id == message.id)
-
-        try:
-            reaction, user = await self.bot.wait_for('reaction_add', timeout=30.0, check=check)
+    async def save_original_values(self):
+        """Sauvegarde les valeurs originales du bot"""
+        if self.original_avatar is None and self.bot.user.avatar:
+            self.original_avatar = await self.bot.user.avatar.read()
+        
+        if self.original_name is None:
+            self.original_name = self.bot.user.name
             
-            if str(reaction.emoji) == '🅰️':
-                required_points = 3500
-                duration_hours = 6
-            else:
-                required_points = 6000
-                duration_hours = 12
-
-            if user_points < required_points:
-                embed = discord.Embed(
-                    title="❌ Points insuffisants",
-                    description=f"Il vous faut **{required_points:,} points**.\n"
-                               f"Vous avez actuellement **{user_points:,} points**.",
-                    color=0xff0000
-                )
-                return await message.edit(embed=embed)
-
-            # Sauvegarder le statut original
-            if not self.original_status:
-                current_activity = self.bot.activity
-                if current_activity:
-                    self.original_status = {
-                        'type': current_activity.type.name,
-                        'name': current_activity.name
-                    }
-                else:
-                    self.original_status = None
-
-            # Créer et appliquer la nouvelle activité
-            activity = discord.Activity(
-                type=activity_types[activity_type.lower()],
-                name=status_text
-            )
-            
-            await self.bot.change_presence(activity=activity)
-            
-            # Déduire les points
-            user_data[user_id]['points'] -= required_points
-            self.save_user_data(user_data)
-            
-            # Enregistrer le changement temporaire
-            expiry_time = datetime.now() + timedelta(hours=duration_hours)
-            self.temp_changes["status"] = {
-                "expires_at": expiry_time.isoformat(),
-                "changed_by": ctx.author.id,
-                "activity_type": activity_type.lower(),
-                "activity_name": status_text,
-                "duration": duration_hours
+        if self.original_status is None:
+            self.original_status = {
+                'activity': self.bot.activity,
+                'status': self.bot.status
             }
-            self.save_temp_changes()
-            
-            embed = discord.Embed(
-                title="✅ Statut modifié !",
-                description=f"**Nouveau statut :** {activity_type.title()} {status_text}\n"
-                           f"**Coût :** {required_points:,} points\n"
-                           f"**Durée :** {duration_hours} heures\n"
-                           f"**Points restants :** {user_data[user_id]['points']:,}",
-                color=0x00ff00
-            )
-            await message.edit(embed=embed)
-            
-        except asyncio.TimeoutError:
-            embed = discord.Embed(
-                title="⏰ Temps écoulé",
-                description="Vous avez mis trop de temps à réagir.",
-                color=0xff6b6b
-            )
-            await message.edit(embed=embed)
-        except Exception as e:
-            await ctx.send(f"❌ Erreur lors du changement de statut : {e}")
 
-    @commands.command(name="reset_status")
-    async def reset_bot_status(self, ctx):
-        """Remet le statut du bot par défaut"""
-        user_data = self.load_user_data()
-        user_id = str(ctx.author.id)
-        
-        # Vérifier les points
-        user_points = user_data.get(user_id, {}).get('points', 0)
-        required_points = 500
-        
-        if user_points < required_points:
-            embed = discord.Embed(
-                title="❌ Points insuffisants",
-                description=f"Il vous faut **{required_points:,} points** pour reset le statut.\n"
-                           f"Vous avez actuellement **{user_points:,} points**.",
-                color=0xff0000
-            )
-            return await ctx.send(embed=embed)
-
-        try:
-            # Restaurer le statut original ou enlever l'activité
-            if self.original_status:
-                activity_types = {
-                    'playing': discord.ActivityType.playing,
-                    'listening': discord.ActivityType.listening,
-                    'watching': discord.ActivityType.watching,
-                    'streaming': discord.ActivityType.streaming,
-                    'competing': discord.ActivityType.competing
-                }
-                
-                original_activity = discord.Activity(
-                    type=activity_types.get(self.original_status['type'], discord.ActivityType.playing),
-                    name=self.original_status['name']
-                )
-                await self.bot.change_presence(activity=original_activity)
-            else:
-                await self.bot.change_presence(activity=None)
-            
-            # Déduire les points
-            user_data[user_id]['points'] -= required_points
-            self.save_user_data(user_data)
-            
-            # Supprimer le changement temporaire
-            self.temp_changes["status"] = None
-            self.save_temp_changes()
-            
-            embed = discord.Embed(
-                title="✅ Statut réinitialisé !",
-                description=f"Le statut du bot a été remis par défaut.\n"
-                           f"**Coût :** {required_points:,} points\n"
-                           f"**Points restants :** {user_data[user_id]['points']:,}",
-                color=0x00ff00
-            )
-            await ctx.send(embed=embed)
-            
-        except Exception as e:
-            await ctx.send(f"❌ Erreur lors de la réinitialisation du statut : {e}")
-
-    @commands.command(name="status_presets", aliases=["presets"])
-    async def status_presets(self, ctx):
-        """Affiche des statuts pré-définis populaires"""
-        embed = discord.Embed(
-            title="🎮 Statuts Pré-définis Populaires",
-            description="Copiez-collez ces commandes populaires :",
-            color=0x3498db
-        )
-        
-        presets = [
-            ("🎮 Gaming", [
-                "`j!status playing Minecraft`",
-                "`j!status playing Among Us`", 
-                "`j!status playing Fortnite`",
-                "`j!status competing in Ranked`"
-            ]),
-            ("🎵 Musique", [
-                "`j!status listening to Spotify`",
-                "`j!status listening to Lo-Fi Hip Hop`",
-                "`j!status listening to your requests`"
-            ]),
-            ("📺 Divertissement", [
-                "`j!status watching Netflix`",
-                "`j!status watching YouTube`",
-                "`j!status watching the server`"
-            ]),
-            ("🤖 Bot", [
-                "`j!status playing with commands`",
-                "`j!status watching over the server`",
-                "`j!status listening to your problems`"
-            ])
-        ]
-        
-        for category, commands in presets:
-            embed.add_field(
-                name=category,
-                value="\n".join(commands),
-                inline=False
-            )
-        
-        await ctx.send(embed=embed)
-
-    @commands.command(name="bot_status")
-    async def bot_status_info(self, ctx):
-        """Affiche le statut actuel du bot (changements temporaires)"""
-        embed = discord.Embed(
-            title="🤖 Statut du Bot",
-            color=0x3498db
-        )
-        
-        # Vérifier les changements d'avatar
-        if self.temp_changes.get("avatar"):
-            avatar_data = self.temp_changes["avatar"]
-            expires_at = datetime.fromisoformat(avatar_data["expires_at"])
-            time_left = expires_at - datetime.now()
-            
-            if time_left.total_seconds() > 0:
-                hours, remainder = divmod(int(time_left.total_seconds()), 3600)
-                minutes = remainder // 60
-                embed.add_field(
-                    name="🖼️ Avatar Personnalisé",
-                    value=f"**Actif encore :** {hours}h {minutes}m\n"
-                          f"**Changé par :** <@{avatar_data['changed_by']}>",
-                    inline=False
-                )
-        
-        # Vérifier les changements de nom
-        if self.temp_changes.get("name"):
-            name_data = self.temp_changes["name"]
-            expires_at = datetime.fromisoformat(name_data["expires_at"])
-            time_left = expires_at - datetime.now()
-            
-            if time_left.total_seconds() > 0:
-                hours, remainder = divmod(int(time_left.total_seconds()), 3600)
-                minutes = remainder // 60
-                embed.add_field(
-                    name="🏷️ Nom Personnalisé",
-                    value=f"**Nom actuel :** {self.bot.user.display_name}\n"
-                          f"**Actif encore :** {hours}h {minutes}m\n"
-                          f"**Changé par :** <@{name_data['changed_by']}>",
-                    inline=False
-                )
-        
-        # Vérifier les changements de statut
-        if self.temp_changes.get("status"):
-            status_data = self.temp_changes["status"]
-            expires_at = datetime.fromisoformat(status_data["expires_at"])
-            time_left = expires_at - datetime.now()
-            
-            if time_left.total_seconds() > 0:
-                hours, remainder = divmod(int(time_left.total_seconds()), 3600)
-                minutes = remainder // 60
-                
-                activity_icons = {
-                    'playing': '🎮',
-                    'listening': '🎵', 
-                    'watching': '📺',
-                    'streaming': '🔴',
-                    'competing': '🏆'
-                }
-                
-                icon = activity_icons.get(status_data['activity_type'], '🎮')
-                embed.add_field(
-                    name=f"{icon} Statut Personnalisé",
-                    value=f"**Statut :** {status_data['activity_type'].title()} {status_data['activity_name']}\n"
-                          f"**Actif encore :** {hours}h {minutes}m\n"
-                          f"**Durée totale :** {status_data['duration']}h\n"
-                          f"**Changé par :** <@{status_data['changed_by']}>",
-                    inline=False
-                )
-        
-        if not embed.fields:
-            embed.description = "Aucune modification temporaire active."
-            
-        # Ajouter le statut actuel
-        current_activity = self.bot.activity
-        if current_activity:
-            activity_name = f"{current_activity.type.name.title()} {current_activity.name}"
-        else:
-            activity_name = "Aucune activité"
-            
-        embed.add_field(
-            name="📊 Statut Actuel",
-            value=f"**Activité :** {activity_name}\n"
-                  f"**En ligne :** {self.bot.status.name.title()}",
-            inline=False
-        )
-        
-        await ctx.send(embed=embed)
-
-    @tasks.loop(minutes=5)
+    @tasks.loop(minutes=30)
     async def cleanup_task(self):
-        """Tâche qui s'exécute toutes les 5 minutes pour nettoyer les changements expirés"""
-        current_time = datetime.now()
-        changed = False
-        
-        # Vérifier l'avatar
-        if self.temp_changes.get("avatar"):
-            expires_at = datetime.fromisoformat(self.temp_changes["avatar"]["expires_at"])
-            if current_time >= expires_at:
-                try:
-                    if self.original_avatar:
-                        async with aiohttp.ClientSession() as session:
-                            async with session.get(self.original_avatar) as response:
-                                if response.status == 200:
-                                    avatar_bytes = await response.read()
-                                    await self.bot.user.edit(avatar=avatar_bytes)
-                    else:
-                        await self.bot.user.edit(avatar=None)
-                    self.temp_changes["avatar"] = None
-                    changed = True
-                    print("✅ Avatar du bot restauré automatiquement")
-                except Exception as e:
-                    print(f"❌ Erreur lors de la restauration de l'avatar : {e}")
-        
-        # Vérifier le nom
-        if self.temp_changes.get("name"):
-            expires_at = datetime.fromisoformat(self.temp_changes["name"]["expires_at"])
-            if current_time >= expires_at:
-                try:
-                    await self.bot.user.edit(username=self.original_name or "JackBot")
-                    self.temp_changes["name"] = None  
-                    changed = True
-                    print("✅ Nom du bot restauré automatiquement")
-                except Exception as e:
-                    print(f"❌ Erreur lors de la restauration du nom : {e}")
-        
-        # Vérifier le statut
-        if self.temp_changes.get("status"):
-            expires_at = datetime.fromisoformat(self.temp_changes["status"]["expires_at"])
-            if current_time >= expires_at:
-                try:
-                    if self.original_status:
-                        activity_types = {
-                            'playing': discord.ActivityType.playing,
-                            'listening': discord.ActivityType.listening,
-                            'watching': discord.ActivityType.watching,
-                            'streaming': discord.ActivityType.streaming,
-                            'competing': discord.ActivityType.competing
-                        }
-                        
-                        original_activity = discord.Activity(
-                            type=activity_types.get(self.original_status['type'], discord.ActivityType.playing),
-                            name=self.original_status['name']
+        """Tâche de nettoyage pour restaurer les valeurs originales"""
+        try:
+            current_time = datetime.now()
+            changes_made = False
+
+            # Vérifier l'avatar
+            if (self.temp_changes["avatar"] and 
+                datetime.fromisoformat(self.temp_changes["avatar"]["expires_at"]) <= current_time):
+                
+                if self.original_avatar:
+                    try:
+                        await self.bot.user.edit(avatar=self.original_avatar)
+                        print("✅ Avatar du bot restauré automatiquement")
+                    except Exception as e:
+                        print(f"❌ Erreur lors de la restauration de l'avatar: {e}")
+                
+                self.temp_changes["avatar"] = None
+                changes_made = True
+
+            # Vérifier le nom
+            if (self.temp_changes["name"] and 
+                datetime.fromisoformat(self.temp_changes["name"]["expires_at"]) <= current_time):
+                
+                if self.original_name:
+                    try:
+                        await self.bot.user.edit(username=self.original_name)
+                        print("✅ Nom du bot restauré automatiquement")
+                    except Exception as e:
+                        print(f"❌ Erreur lors de la restauration du nom: {e}")
+                
+                self.temp_changes["name"] = None
+                changes_made = True
+
+            # Vérifier le statut
+            if (self.temp_changes["status"] and 
+                datetime.fromisoformat(self.temp_changes["status"]["expires_at"]) <= current_time):
+                
+                if self.original_status:
+                    try:
+                        await self.bot.change_presence(
+                            activity=self.original_status['activity'],
+                            status=self.original_status['status']
                         )
-                        await self.bot.change_presence(activity=original_activity)
-                    else:
-                        await self.bot.change_presence(activity=None)
-                    
-                    self.temp_changes["status"] = None
-                    changed = True
-                    print("✅ Statut du bot restauré automatiquement")
-                except Exception as e:
-                    print(f"❌ Erreur lors de la restauration du statut : {e}")
-        
-        if changed:
-            self.save_temp_changes()
+                        print("✅ Statut du bot restauré automatiquement")
+                    except Exception as e:
+                        print(f"❌ Erreur lors de la restauration du statut: {e}")
+                
+                self.temp_changes["status"] = None
+                changes_made = True
+
+            if changes_made:
+                self.save_temp_changes()
+
+        except Exception as e:
+            print(f"❌ Erreur dans cleanup_task: {e}")
 
     @cleanup_task.before_loop
     async def before_cleanup_task(self):
         await self.bot.wait_until_ready()
+
+    @commands.command(name="avatar")
+    @commands.cooldown(1, 300, commands.BucketType.user)  # 5 min cooldown
+    async def change_avatar(self, ctx, url: str = None):
+        """Change l'avatar du bot temporairement (6h) - 5000 points"""
+        await self.save_original_values()
+        
+        if not url:
+            if ctx.message.attachments:
+                url = ctx.message.attachments[0].url
+            else:
+                embed = discord.Embed(
+                    title="❌ Erreur",
+                    description="Veuillez fournir une URL d'image ou joindre une image !",
+                    color=0xe74c3c
+                )
+                await ctx.send(embed=embed)
+                return
+
+        # Vérifier les points
+        if not self.deduct_user_points(ctx.author.id, 5000):
+            embed = discord.Embed(
+                title="❌ Points insuffisants",
+                description="Il vous faut **5,000 points** pour changer l'avatar du bot !",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
+            return
+
+        try:
+            # Télécharger l'image
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        raise Exception("Impossible de télécharger l'image")
+                    
+                    avatar_bytes = await resp.read()
+                    
+                    if len(avatar_bytes) > 8 * 1024 * 1024:  # 8MB max
+                        raise Exception("Image trop volumineuse (max 8MB)")
+
+            # Changer l'avatar
+            await self.bot.user.edit(avatar=avatar_bytes)
+            
+            # Enregistrer le changement temporaire
+            expires_at = datetime.now() + timedelta(hours=6)
+            self.temp_changes["avatar"] = {
+                "user_id": ctx.author.id,
+                "expires_at": expires_at.isoformat(),
+                "original_url": url
+            }
+            self.save_temp_changes()
+
+            embed = discord.Embed(
+                title="✅ Avatar Modifié",
+                description=f"L'avatar du bot a été changé par {ctx.author.mention} !\n"
+                           f"**Expiration :** <t:{int(expires_at.timestamp())}:R>\n"
+                           f"**Coût :** 5,000 points",
+                color=0x2ecc71
+            )
+            embed.set_thumbnail(url=self.bot.user.avatar.url)
+            await ctx.send(embed=embed)
+
+        except discord.HTTPException as e:
+            embed = discord.Embed(
+                title="❌ Erreur Discord",
+                description=f"Impossible de changer l'avatar : {str(e)}\n"
+                           "*(Vos points ont été remboursés)*",
+                color=0xe74c3c
+            )
+            # Rembourser les points
+            user_data = self.load_user_data()
+            user_data[str(ctx.author.id)]['points'] += 5000
+            self.save_user_data(user_data)
+            await ctx.send(embed=embed)
+        except Exception as e:
+            embed = discord.Embed(
+                title="❌ Erreur",
+                description=f"Erreur : {str(e)}\n*(Vos points ont été remboursés)*",
+                color=0xe74c3c
+            )
+            # Rembourser les points
+            user_data = self.load_user_data()
+            user_data[str(ctx.author.id)]['points'] += 5000
+            self.save_user_data(user_data)
+            await ctx.send(embed=embed)
+
+    @commands.command(name="name", aliases=["botname"])
+    @commands.cooldown(1, 600, commands.BucketType.user)  # 10 min cooldown
+    async def change_name(self, ctx, *, new_name: str):
+        """Change le nom du bot temporairement (6h) - 7500 points"""
+        await self.save_original_values()
+        
+        if len(new_name) > 32:
+            embed = discord.Embed(
+                title="❌ Erreur",
+                description="Le nom ne peut pas dépasser 32 caractères !",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
+            return
+
+        # Vérifier les points
+        if not self.deduct_user_points(ctx.author.id, 7500):
+            embed = discord.Embed(
+                title="❌ Points insuffisants",
+                description="Il vous faut **7,500 points** pour changer le nom du bot !",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
+            return
+
+        try:
+            old_name = self.bot.user.name
+            await self.bot.user.edit(username=new_name)
+            
+            # Enregistrer le changement temporaire
+            expires_at = datetime.now() + timedelta(hours=6)
+            self.temp_changes["name"] = {
+                "user_id": ctx.author.id,
+                "expires_at": expires_at.isoformat(),
+                "new_name": new_name,
+                "old_name": old_name
+            }
+            self.save_temp_changes()
+
+            embed = discord.Embed(
+                title="✅ Nom Modifié",
+                description=f"Le nom du bot a été changé par {ctx.author.mention} !\n"
+                           f"**Ancien nom :** {old_name}\n"
+                           f"**Nouveau nom :** {new_name}\n"
+                           f"**Expiration :** <t:{int(expires_at.timestamp())}:R>\n"
+                           f"**Coût :** 7,500 points",
+                color=0x2ecc71
+            )
+            await ctx.send(embed=embed)
+
+        except discord.HTTPException as e:
+            embed = discord.Embed(
+                title="❌ Erreur Discord",
+                description=f"Impossible de changer le nom : {str(e)}\n"
+                           "*(Vos points ont été remboursés)*",
+                color=0xe74c3c
+            )
+            # Rembourser les points
+            user_data = self.load_user_data()
+            user_data[str(ctx.author.id)]['points'] += 7500
+            self.save_user_data(user_data)
+            await ctx.send(embed=embed)
+
+    @commands.command(name="status", aliases=["presence"])
+    async def change_status(self, ctx, activity_type: str = None, *, text: str = None):
+        """Change le statut du bot temporairement
+        Types: playing, listening, watching, streaming, competing
+        Usage: j!status playing Minecraft
+        """
+        await self.save_original_values()
+        
+        if not activity_type or not text:
+            embed = discord.Embed(
+                title="❌ Usage Incorrect",
+                description="**Usage:** `j!status <type> <texte>`\n\n"
+                           "**Types disponibles:**\n"
+                           "• `playing` - Joue à... (3,500 pts - 6h)\n"
+                           "• `listening` - Écoute... (3,500 pts - 6h)\n"
+                           "• `watching` - Regarde... (3,500 pts - 6h)\n"
+                           "• `streaming` - Streame... (6,000 pts - 12h)\n"
+                           "• `competing` - Participe à... (6,000 pts - 12h)\n\n"
+                           "**Exemple:** `j!status playing Minecraft`",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
+            return
+
+        # Déterminer le coût et la durée
+        activity_type = activity_type.lower()
+        if activity_type in ['playing', 'listening', 'watching']:
+            cost = 3500
+            duration_hours = 6
+        elif activity_type in ['streaming', 'competing']:
+            cost = 6000
+            duration_hours = 12
+        else:
+            embed = discord.Embed(
+                title="❌ Type Invalide",
+                description="Types valides: `playing`, `listening`, `watching`, `streaming`, `competing`",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
+            return
+
+        # Vérifier les points
+        if not self.deduct_user_points(ctx.author.id, cost):
+            embed = discord.Embed(
+                title="❌ Points insuffisants",
+                description=f"Il vous faut **{cost:,} points** pour ce type de statut !",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
+            return
+
+        try:
+            # Créer l'activité appropriée
+            if activity_type == 'playing':
+                activity = discord.Game(name=text)
+            elif activity_type == 'listening':
+                activity = discord.Activity(type=discord.ActivityType.listening, name=text)
+            elif activity_type == 'watching':
+                activity = discord.Activity(type=discord.ActivityType.watching, name=text)
+            elif activity_type == 'streaming':
+                activity = discord.Streaming(name=text, url="https://twitch.tv/discord")
+            elif activity_type == 'competing':
+                activity = discord.Activity(type=discord.ActivityType.competing, name=text)
+
+            # Changer le statut
+            await self.bot.change_presence(activity=activity, status=discord.Status.online)
+            
+            # Enregistrer le changement temporaire
+            expires_at = datetime.now() + timedelta(hours=duration_hours)
+            self.temp_changes["status"] = {
+                "user_id": ctx.author.id,
+                "expires_at": expires_at.isoformat(),
+                "activity_type": activity_type,
+                "text": text
+            }
+            self.save_temp_changes()
+
+            # Emojis pour chaque type
+            type_emojis = {
+                'playing': '🎮',
+                'listening': '🎵',
+                'watching': '👀',
+                'streaming': '🟣',
+                'competing': '🏆'
+            }
+
+            embed = discord.Embed(
+                title="✅ Statut Modifié",
+                description=f"{type_emojis.get(activity_type, '📱')} Nouveau statut défini par {ctx.author.mention} !\n\n"
+                           f"**Type :** {activity_type.title()}\n"
+                           f"**Texte :** {text}\n"
+                           f"**Durée :** {duration_hours}h\n"
+                           f"**Expiration :** <t:{int(expires_at.timestamp())}:R>\n"
+                           f"**Coût :** {cost:,} points",
+                color=0x2ecc71
+            )
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            embed = discord.Embed(
+                title="❌ Erreur",
+                description=f"Impossible de changer le statut : {str(e)}\n"
+                           "*(Vos points ont été remboursés)*",
+                color=0xe74c3c
+            )
+            # Rembourser les points
+            user_data = self.load_user_data()
+            user_data[str(ctx.author.id)]['points'] += cost
+            self.save_user_data(user_data)
+            await ctx.send(embed=embed)
+
+    @commands.command(name="reset_status", aliases=["resetstatus"])
+    async def reset_status(self, ctx):
+        """Remet le statut du bot par défaut - 500 points"""
+        if not self.deduct_user_points(ctx.author.id, 500):
+            embed = discord.Embed(
+                title="❌ Points insuffisants",
+                description="Il vous faut **500 points** pour reset le statut !",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
+            return
+
+        try:
+            # Restaurer le statut original
+            if self.original_status:
+                await self.bot.change_presence(
+                    activity=self.original_status['activity'],
+                    status=self.original_status['status']
+                )
+            else:
+                await self.bot.change_presence(activity=None, status=discord.Status.online)
+            
+            # Supprimer le changement temporaire
+            self.temp_changes["status"] = None
+            self.save_temp_changes()
+
+            embed = discord.Embed(
+                title="✅ Statut Restauré",
+                description=f"Le statut du bot a été remis par défaut par {ctx.author.mention}\n"
+                           f"**Coût :** 500 points",
+                color=0x2ecc71
+            )
+            await ctx.send(embed=embed)
+
+        except Exception as e:
+            embed = discord.Embed(
+                title="❌ Erreur",
+                description=f"Erreur : {str(e)}\n*(Vos points ont été remboursés)*",
+                color=0xe74c3c
+            )
+            # Rembourser les points
+            user_data = self.load_user_data()
+            user_data[str(ctx.author.id)]['points'] += 500
+            self.save_user_data(user_data)
+            await ctx.send(embed=embed)
+
+    @commands.command(name="presets", aliases=["statuspresets"])
+    async def status_presets(self, ctx):
+        """Affiche les statuts pré-définis populaires"""
+        embed = discord.Embed(
+            title="🎮 Statuts Pré-définis",
+            description="Copiez-collez ces commandes populaires !",
+            color=0x9b59b6
+        )
+
+        presets = {
+            "🎮 Gaming": [
+                "j!status playing Minecraft",
+                "j!status playing Among Us", 
+                "j!status playing Valorant",
+                "j!status competing dans Ranked"
+            ],
+            "🎵 Musique": [
+                "j!status listening to Spotify",
+                "j!status listening to Lofi Hip Hop",
+                "j!status listening to vos playlists"
+            ],
+            "📺 Divertissement": [
+                "j!status watching Netflix",
+                "j!status watching YouTube",
+                "j!status watching les membres",
+                "j!status streaming Just Chatting"
+            ],
+            "😎 Fun": [
+                "j!status playing avec mes circuits",
+                "j!status watching le serveur Discord",
+                "j!status competing pour l'attention",
+                "j!status listening to vos conversations"
+            ]
+        }
+
+        for category, commands in presets.items():
+            embed.add_field(
+                name=category,
+                value="\n".join([f"`{cmd}`" for cmd in commands]),
+                inline=True
+            )
+
+        embed.add_field(
+            name="💡 Astuce",
+            value="Les statuts `streaming` et `competing` durent 12h au lieu de 6h !",
+            inline=False
+        )
+
+        await ctx.send(embed=embed)
+
+    @commands.command(name="bot_status", aliases=["botstatus", "status_info"])
+    async def show_bot_status_info(self, ctx):
+        """Affiche toutes les modifications actives du bot"""
+        embed = discord.Embed(
+            title="🤖 État du Bot",
+            description="Informations sur les modifications actives",
+            color=0x3498db,
+            timestamp=datetime.now()
+        )
+
+        # Informations actuelles
+        embed.add_field(
+            name="📊 Informations Actuelles",
+            value=f"**Nom :** {self.bot.user.name}\n"
+                  f"**Statut :** {self.bot.status}\n"
+                  f"**Activité :** {self.bot.activity.name if self.bot.activity else 'Aucune'}",
+            inline=False
+        )
+
+        # Vérifier les modifications actives
+        active_changes = []
+        
+        if self.temp_changes.get("avatar"):
+            expires = datetime.fromisoformat(self.temp_changes["avatar"]["expires_at"])
+            user_id = self.temp_changes["avatar"]["user_id"]
+            user = self.bot.get_user(user_id)
+            active_changes.append(f"🖼️ **Avatar** - Par {user.mention if user else 'Utilisateur inconnu'}\nExpire <t:{int(expires.timestamp())}:R>")
+
+        if self.temp_changes.get("name"):
+            expires = datetime.fromisoformat(self.temp_changes["name"]["expires_at"])
+            user_id = self.temp_changes["name"]["user_id"]
+            user = self.bot.get_user(user_id)
+            active_changes.append(f"📝 **Nom** - Par {user.mention if user else 'Utilisateur inconnu'}\nExpire <t:{int(expires.timestamp())}:R>")
+
+        if self.temp_changes.get("status"):
+            expires = datetime.fromisoformat(self.temp_changes["status"]["expires_at"])
+            user_id = self.temp_changes["status"]["user_id"]
+            user = self.bot.get_user(user_id)
+            status_type = self.temp_changes["status"]["activity_type"]
+            status_text = self.temp_changes["status"]["text"]
+            active_changes.append(f"🎮 **Statut** - Par {user.mention if user else 'Utilisateur inconnu'}\n{status_type}: {status_text}\nExpire <t:{int(expires.timestamp())}:R>")
+
+        if active_changes:
+            embed.add_field(
+                name="🔄 Modifications Actives",
+                value="\n\n".join(active_changes),
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="✅ État Normal",
+                value="Aucune modification temporaire active",
+                inline=False
+            )
+
+        # Informations sur les originaux
+        if self.original_name or self.original_avatar or self.original_status:
+            original_info = []
+            if self.original_name:
+                original_info.append(f"**Nom original :** {self.original_name}")
+            if self.original_avatar:
+                original_info.append("**Avatar original :** Sauvegardé")
+            if self.original_status:
+                original_info.append("**Statut original :** Sauvegardé")
+            
+            embed.add_field(
+                name="💾 Valeurs de Sauvegarde",
+                value="\n".join(original_info),
+                inline=False
+            )
+
+        embed.set_thumbnail(url=self.bot.user.avatar.url if self.bot.user.avatar else None)
+        await ctx.send(embed=embed)
+
+    @commands.command(name="botcmds", aliases=["bothelp"])
+    async def bot_commands_help(self, ctx):
+        """Guide d'aide pour les commandes de gestion du bot"""
+        embed = discord.Embed(
+            title="🤖 Gestion du Bot",
+            description="Personnalisez l'apparence et le comportement du bot !",
+            color=0xe67e22
+        )
+        
+        embed.add_field(
+            name="🖼️ Gestion Avatar", 
+            value="`j!avatar <url>` - Changer l'avatar (5,000 pts)\n"
+                  "Vous pouvez aussi joindre une image directement",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🏷️ Gestion Nom", 
+            value="`j!name <nouveau_nom>` - Changer le nom (7,500 pts)",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎮 Gestion Statut",
+            value="`j!status <type> <texte>` - Changer le statut\n"
+                  "• Standard: 3,500 pts (6h) • Premium: 6,000 pts (12h)\n"
+                  "`j!reset_status` - Reset statut (500 pts)\n"
+                  "`j!presets` - Statuts pré-définis populaires",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📊 Informations",
+            value="`j!bot_status` - Voir toutes les modifications actives",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎮 Types de Statut",
+            value="• `playing` - Joue à... (6h)\n• `listening` - Écoute... (6h)\n"
+                  "• `watching` - Regarde... (6h)\n• `streaming` - Streame... (12h)\n"
+                  "• `competing` - Participe à... (12h)",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="⏰ Durées",
+            value="• Avatar/Nom: **6 heures**\n• Statut standard: **6 heures**\n• Statut premium: **12 heures**",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="💡 Notes Importantes",
+            value="• Les changements sont temporaires\n• Restauration automatique après expiration\n"
+                  "• Cooldowns pour éviter le spam\n• Remboursement en cas d'erreur",
+            inline=False
+        )
+
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(BotManagement(bot))

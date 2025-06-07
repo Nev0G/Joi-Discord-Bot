@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands, tasks
 import json
 import asyncio
-import yfinance as yf
 from datetime import datetime, timedelta
 import os
 import random

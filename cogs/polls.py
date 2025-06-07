@@ -1,285 +1,409 @@
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 import json
+import os
 import asyncio
 from datetime import datetime, timedelta
-import math
 
-class PollSystem(commands.Cog):
+class Poll(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.polls_file = 'polls.json'
-        self.polls = self.load_polls()
-        self.poll_channel_id = 1380946636494209214  # Remplacez par l'ID de votre channel "🗳️║Polls"
-        self.update_task.start()
+        self.active_polls_file = 'active_polls.json'
+        self.active_polls = self.load_active_polls()
 
-    def load_polls(self):
+    def load_active_polls(self):
+        """Charge les sondages actifs depuis le fichier JSON"""
         try:
-            with open(self.polls_file, 'r') as f:
+            with open(self.active_polls_file, 'r') as f:
                 return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except FileNotFoundError:
+            return {}
+        except json.JSONDecodeError:
             return {}
 
-    def save_polls(self):
-        with open(self.polls_file, 'w') as f:
-            json.dump(self.polls, f, indent=2)
+    def save_active_polls(self):
+        """Sauvegarde les sondages actifs"""
+        with open(self.active_polls_file, 'w') as f:
+            json.dump(self.active_polls, f, indent=2)
 
-    async def get_poll_message(self, poll_id):
-        channel = self.bot.get_channel(self.poll_channel_id)
-        if channel:
-            try:
-                return await channel.fetch_message(poll_id)
-            except discord.NotFound:
-                return None
-        return None
+    def load_user_data(self):
+        """Charge les données utilisateur"""
+        try:
+            with open('user_data.json', 'r') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {}
+        except json.JSONDecodeError:
+            return {}
 
-    async def update_poll_embeds(self):
-        for poll_id in list(self.polls.keys()):
-            poll = self.polls[poll_id]
-            message = await self.get_poll_message(poll_id)
-            if message:
-                await self.update_poll_embed(message, poll)
+    def save_user_data(self, data):
+        """Sauvegarde les données utilisateur"""
+        with open('user_data.json', 'w') as f:
+            json.dump(data, f, indent=2)
 
-    @tasks.loop(seconds=30)
-    async def update_task(self):
-        await self.update_poll_embeds()
+    def update_user_points(self, user_id, points):
+        """Met à jour les points d'un utilisateur"""
+        user_data = self.load_user_data()
+        user_id = str(user_id)
+        
+        if user_id not in user_data:
+            user_data[user_id] = {
+                'points': 0,
+                'last_daily': None,
+                'total_won': 0,
+                'total_lost': 0,
+                'games_played': 0
+            }
+        
+        user_data[user_id]['points'] += points
+        self.save_user_data(user_data)
 
-    async def calculate_odds(self, poll):
-        total_bets = sum(option['total_bet'] for option in poll['options'])
-        if total_bets == 0:
-            return [1.0 for _ in poll['options']]
-
-        odds = []
-        for option in poll['options']:
-            if option['total_bet'] == 0:
-                odds.append(1.0)
-            else:
-                odds.append(total_bets / option['total_bet'])
-        return odds
-
-    async def update_poll_embed(self, message, poll):
-        odds = await self.calculate_odds(poll)
-
-        embed = discord.Embed(
-            title=f"📊 Sondage: {poll['title']}",
-            description=poll['description'],
-            color=discord.Color.blue()
-        )
-
-        for i, option in enumerate(poll['options']):
-            embed.add_field(
-                name=f"Option {i+1}: {option['name']}",
-                value=(
-                    f"Cote: {odds[i]:.2f}\n"
-                    f"Mises totales: {option['total_bet']} points\n"
-                    f"Votes: {len(option['voters'])}"
-                ),
-                inline=False
+    @commands.command(name="poll", aliases=["sondage", "vote"])
+    async def create_poll(self, ctx, title, *options):
+        """Créer un sondage interactif
+        Usage: j!poll "Titre du sondage" "Option 1" "Option 2" "Option 3" ...
+        """
+        if len(options) < 2:
+            embed = discord.Embed(
+                title="❌ Erreur",
+                description="Vous devez fournir au moins 2 options pour le sondage !",
+                color=0xe74c3c
             )
-
-        time_left = poll['end_time'] - datetime.now().timestamp()
-        if time_left > 0:
-            embed.set_footer(text=f"Temps restant: {timedelta(seconds=int(time_left))}")
-
-        await message.edit(embed=embed)
-
-    @commands.group(name="poll", invoke_without_command=True)
-    async def poll(self, ctx):
-        await ctx.send("Utilisez `!poll create` pour créer un nouveau sondage.")
-
-    @poll.command(name="create")
-    @commands.has_permissions(administrator=True)
-    async def create_poll(self, ctx, title: str, duration: int, *, description: str):
-        """Créer un nouveau sondage avec plusieurs options."""
-        if ctx.channel.id != self.poll_channel_id:
-            await ctx.send(f"Les sondages ne peuvent être créés que dans <#{self.poll_channel_id}>.")
+            await ctx.send(embed=embed)
             return
 
-        poll_id = str(ctx.author.id) + str(datetime.now().timestamp())
+        if len(options) > 10:
+            embed = discord.Embed(
+                title="❌ Erreur", 
+                description="Maximum 10 options par sondage !",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
+            return
 
-        self.polls[poll_id] = {
-            "id": poll_id,
-            "creator": ctx.author.id,
-            "title": title,
-            "description": description,
-            "options": [],
-            "start_time": datetime.now().timestamp(),
-            "end_time": datetime.now().timestamp() + duration * 60,
-            "active": True
+        # Émojis pour les réactions
+        emoji_numbers = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟']
+        
+        # Créer l'embed du sondage
+        embed = discord.Embed(
+            title=f"🗳️ {title}",
+            description="Votez en cliquant sur les réactions !",
+            color=0x3498db,
+            timestamp=datetime.utcnow()
+        )
+        
+        # Ajouter les options
+        options_text = ""
+        for i, option in enumerate(options):
+            options_text += f"{emoji_numbers[i]} {option}\n"
+        
+        embed.add_field(
+            name="Options:", 
+            value=options_text,
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📊 Votes:",
+            value="Aucun vote pour le moment",
+            inline=False
+        )
+        
+        embed.set_footer(
+            text=f"Sondage créé par {ctx.author.display_name}",
+            icon_url=ctx.author.avatar.url if ctx.author.avatar else None
+        )
+
+        # Envoyer le message
+        poll_message = await ctx.send(embed=embed)
+        
+        # Ajouter les réactions
+        for i in range(len(options)):
+            await poll_message.add_reaction(emoji_numbers[i])
+        
+        # Ajouter une réaction pour fermer le sondage
+        await poll_message.add_reaction('🔒')
+
+        # Sauvegarder le sondage
+        poll_data = {
+            'title': title,
+            'options': list(options),
+            'creator_id': ctx.author.id,
+            'channel_id': ctx.channel.id,
+            'message_id': poll_message.id,
+            'votes': {},
+            'created_at': datetime.utcnow().isoformat(),
+            'active': True
         }
+        
+        self.active_polls[str(poll_message.id)] = poll_data
+        self.save_active_polls()
 
-        self.save_polls()
+        # Récompenser le créateur
+        self.update_user_points(ctx.author.id, 10)
 
-        await ctx.send(f"Sondage créé avec l'ID: {poll_id}. Utilisez `!poll addoption {poll_id} [nom de l'option]` pour ajouter des options.")
-
-    @poll.command(name="addoption")
-    @commands.has_permissions(administrator=True)
-    async def add_option(self, ctx, poll_id: str, *, option_name: str):
-        """Ajouter une option à un sondage."""
-        if poll_id not in self.polls:
-            await ctx.send("Sondage introuvable.")
-            return
-
-        self.polls[poll_id]['options'].append({
-            "name": option_name,
-            "total_bet": 0,
-            "voters": []
-        })
-
-        self.save_polls()
-        await ctx.send(f"Option ajoutée au sondage {poll_id}.")
-
-    @poll.command(name="start")
-    @commands.has_permissions(administrator=True)
-    async def start_poll(self, ctx, poll_id: str):
-        """Démarrer un sondage."""
-        if poll_id not in self.polls:
-            await ctx.send("Sondage introuvable.")
-            return
-
-        poll = self.polls[poll_id]
-        if not poll['options']:
-            await ctx.send("Le sondage doit avoir au moins une option.")
-            return
-
-        channel = self.bot.get_channel(self.poll_channel_id)
-        if not channel:
-            await ctx.send("Channel de sondage introuvable.")
-            return
-
+    @commands.command(name="quickpoll", aliases=["qpoll"])
+    async def quick_poll(self, ctx, *, question):
+        """Créer un sondage oui/non rapide
+        Usage: j!quickpoll Votre question ?
+        """
         embed = discord.Embed(
-            title=f"📊 Sondage: {poll['title']}",
-            description=poll['description'],
-            color=discord.Color.blue()
+            title="🗳️ Sondage Rapide",
+            description=f"**{question}**",
+            color=0x2ecc71,
+            timestamp=datetime.utcnow()
+        )
+        
+        embed.add_field(
+            name="Options:",
+            value="👍 Oui\n👎 Non",
+            inline=False
+        )
+        
+        embed.set_footer(
+            text=f"Sondage créé par {ctx.author.display_name}",
+            icon_url=ctx.author.avatar.url if ctx.author.avatar else None
         )
 
+        message = await ctx.send(embed=embed)
+        await message.add_reaction('👍')
+        await message.add_reaction('👎')
+
+        # Récompenser le créateur
+        self.update_user_points(ctx.author.id, 5)
+
+    @commands.command(name="pollresult", aliases=["results"])
+    async def poll_results(self, ctx, message_id: int):
+        """Voir les résultats d'un sondage
+        Usage: j!pollresult <ID_du_message>
+        """
+        poll_id = str(message_id)
+        
+        if poll_id not in self.active_polls:
+            embed = discord.Embed(
+                title="❌ Erreur",
+                description="Sondage introuvable !",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
+            return
+
+        poll = self.active_polls[poll_id]
+        
+        try:
+            channel = self.bot.get_channel(poll['channel_id'])
+            message = await channel.fetch_message(message_id)
+        except:
+            embed = discord.Embed(
+                title="❌ Erreur",
+                description="Impossible de récupérer le message du sondage !",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
+            return
+
+        # Compter les votes
+        emoji_numbers = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟']
+        vote_counts = []
+        total_votes = 0
+
         for i, option in enumerate(poll['options']):
+            reaction = discord.utils.get(message.reactions, emoji=emoji_numbers[i])
+            count = reaction.count - 1 if reaction else 0  # -1 pour enlever la réaction du bot
+            vote_counts.append(count)
+            total_votes += count
+
+        # Créer l'embed des résultats
+        embed = discord.Embed(
+            title=f"📊 Résultats : {poll['title']}",
+            color=0xf39c12,
+            timestamp=datetime.utcnow()
+        )
+
+        if total_votes == 0:
             embed.add_field(
-                name=f"Option {i+1}: {option['name']}",
-                value="Cote: 1.0\nMises totales: 0 points\nVotes: 0",
+                name="Résultats:",
+                value="Aucun vote pour le moment",
+                inline=False
+            )
+        else:
+            results_text = ""
+            for i, (option, count) in enumerate(zip(poll['options'], vote_counts)):
+                percentage = (count / total_votes) * 100 if total_votes > 0 else 0
+                bar_length = int(percentage / 10)
+                bar = "█" * bar_length + "░" * (10 - bar_length)
+                results_text += f"{emoji_numbers[i]} **{option}**\n{bar} {count} votes ({percentage:.1f}%)\n\n"
+            
+            embed.add_field(
+                name="Résultats:",
+                value=results_text,
                 inline=False
             )
 
-        time_left = poll['end_time'] - datetime.now().timestamp()
-        embed.set_footer(text=f"Temps restant: {timedelta(seconds=int(time_left))}")
+        embed.add_field(
+            name="📈 Statistiques:",
+            value=f"**Total des votes:** {total_votes}\n"
+                  f"**Statut:** {'🟢 Actif' if poll['active'] else '🔴 Fermé'}",
+            inline=False
+        )
 
-        message = await channel.send(embed=embed)
+        await ctx.send(embed=embed)
 
-        for i in range(len(poll['options'])):
-            await message.add_reaction(f"{i+1}\N{combining enclosing keycap}")
-
-        self.polls[poll_id]['message_id'] = message.id
-        self.save_polls()
-
-        await ctx.send(f"Sondage {poll_id} démarré avec succès!")
-
-    @poll.command(name="bet")
-    async def bet_on_poll(self, ctx, poll_id: str, option_number: int, amount: int):
-        """Miser des points sur une option de sondage."""
-        if poll_id not in self.polls:
-            await ctx.send("Sondage introuvable.")
+    @commands.command(name="closepoll", aliases=["endpoll"])
+    async def close_poll(self, ctx, message_id: int):
+        """Fermer un sondage (créateur uniquement)
+        Usage: j!closepoll <ID_du_message>
+        """
+        poll_id = str(message_id)
+        
+        if poll_id not in self.active_polls:
+            embed = discord.Embed(
+                title="❌ Erreur",
+                description="Sondage introuvable !",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
             return
 
-        poll = self.polls[poll_id]
-        if not poll['active']:
-            await ctx.send("Ce sondage est terminé.")
+        poll = self.active_polls[poll_id]
+        
+        # Vérifier si l'utilisateur peut fermer le sondage
+        if poll['creator_id'] != ctx.author.id and not ctx.author.guild_permissions.manage_messages:
+            embed = discord.Embed(
+                title="❌ Erreur",
+                description="Seul le créateur du sondage ou un modérateur peut le fermer !",
+                color=0xe74c3c
+            )
+            await ctx.send(embed=embed)
             return
 
-        if option_number < 1 or option_number > len(poll['options']):
-            await ctx.send("Numéro d'option invalide.")
+        # Marquer comme fermé
+        self.active_polls[poll_id]['active'] = False
+        self.save_active_polls()
+
+        # Afficher les résultats finaux
+        await self.poll_results(ctx, message_id)
+
+        embed = discord.Embed(
+            title="🔒 Sondage Fermé",
+            description=f"Le sondage **{poll['title']}** a été fermé par {ctx.author.mention}",
+            color=0x95a5a6
+        )
+        await ctx.send(embed=embed)
+
+    @commands.command(name="mypolls", aliases=["mesondages"])
+    async def my_polls(self, ctx):
+        """Voir vos sondages actifs"""
+        user_polls = []
+        
+        for poll_id, poll in self.active_polls.items():
+            if poll['creator_id'] == ctx.author.id and poll['active']:
+                user_polls.append((poll_id, poll))
+
+        if not user_polls:
+            embed = discord.Embed(
+                title="📋 Vos Sondages",
+                description="Vous n'avez aucun sondage actif.",
+                color=0x95a5a6
+            )
+            await ctx.send(embed=embed)
             return
 
-        option = poll['options'][option_number - 1]
+        embed = discord.Embed(
+            title="📋 Vos Sondages Actifs",
+            color=0x3498db
+        )
 
-        # Vérification des points de l'utilisateur (à adapter selon votre système)
-        user_points = 1000  # Remplacez par votre système de points
-        if user_points < amount:
-            await ctx.send("Vous n'avez pas assez de points.")
-            return
+        for poll_id, poll in user_polls[:10]:  # Limiter à 10
+            created_date = datetime.fromisoformat(poll['created_at']).strftime("%d/%m/%Y %H:%M")
+            embed.add_field(
+                name=f"🗳️ {poll['title']}",
+                value=f"**ID:** {poll_id}\n"
+                      f"**Créé:** {created_date}\n"
+                      f"**Options:** {len(poll['options'])}",
+                inline=True
+            )
 
-        # Mettre à jour les points de l'utilisateur (à adapter selon votre système)
-        # user_points -= amount
+        embed.set_footer(text="Utilisez j!pollresult <ID> pour voir les résultats")
+        await ctx.send(embed=embed)
 
-        option['total_bet'] += amount
-        if ctx.author.id not in option['voters']:
-            option['voters'].append(ctx.author.id)
+    @commands.command(name="pollhelp", aliases=["aideondage"])
+    async def poll_help(self, ctx):
+        """Guide d'utilisation des sondages"""
+        embed = discord.Embed(
+            title="🗳️ Guide des Sondages",
+            description="Créez et gérez des sondages interactifs !",
+            color=0x9b59b6
+        )
 
-        self.save_polls()
-        await self.update_poll_embed(await self.get_poll_message(poll_id), poll)
-        await ctx.send(f"Vous avez misé {amount} points sur l'option {option_number}.")
+        embed.add_field(
+            name="📝 Créer un Sondage",
+            value="`j!poll \"Titre\" \"Option 1\" \"Option 2\" ...`\n"
+                  "Exemple: `j!poll \"Pizza préférée?\" \"Margherita\" \"Pepperoni\" \"4 Fromages\"`",
+            inline=False
+        )
 
-    @poll.command(name="end")
-    @commands.has_permissions(administrator=True)
-    async def end_poll(self, ctx, poll_id: str):
-        """Terminer un sondage manuellement."""
-        if poll_id not in self.polls:
-            await ctx.send("Sondage introuvable.")
-            return
+        embed.add_field(
+            name="⚡ Sondage Rapide",
+            value="`j!quickpoll <question>`\n"
+                  "Exemple: `j!quickpoll Aimez-vous ce bot ?`",
+            inline=False
+        )
 
-        poll = self.polls[poll_id]
-        poll['active'] = False
-        poll['end_time'] = datetime.now().timestamp()
+        embed.add_field(
+            name="📊 Gestion",
+            value="`j!pollresult <ID>` - Voir les résultats\n"
+                  "`j!closepoll <ID>` - Fermer un sondage\n"
+                  "`j!mypolls` - Vos sondages actifs",
+            inline=False
+        )
 
-        message = await self.get_poll_message(poll_id)
-        if message:
-            await self.update_poll_embed(message, poll)
+        embed.add_field(
+            name="🎁 Récompenses",
+            value="• Créer un sondage: **+10 points**\n"
+                  "• Sondage rapide: **+5 points**\n"
+                  "• Voter: **+1 point**",
+            inline=False
+        )
 
-        self.save_polls()
-        await ctx.send(f"Sondage {poll_id} terminé.")
+        embed.add_field(
+            name="💡 Conseils",
+            value="• Maximum 10 options par sondage\n"
+                  "• Utilisez des guillemets pour les titres/options\n"
+                  "• Les sondages restent actifs jusqu'à fermeture manuelle",
+            inline=False
+        )
+
+        await ctx.send(embed=embed)
 
     @commands.Cog.listener()
-    async def on_raw_reaction_add(self, payload):
-        if payload.channel_id != self.poll_channel_id:
+    async def on_reaction_add(self, reaction, user):
+        """Gérer les votes sur les sondages"""
+        if user.bot:
             return
 
-        message = await self.get_poll_message(payload.message_id)
-        if not message:
-            return
+        message = reaction.message
+        poll_id = str(message.id)
 
-        poll_id = str(payload.message_id)
-        if poll_id not in self.polls:
-            return
+        if poll_id in self.active_polls and self.active_polls[poll_id]['active']:
+            # Récompenser le votant
+            self.update_user_points(user.id, 1)
 
-        poll = self.polls[poll_id]
-        if not poll['active']:
-            return
+    async def cleanup_old_polls(self):
+        """Nettoie les anciens sondages (optionnel - à appeler manuellement)"""
+        current_time = datetime.utcnow()
+        to_remove = []
 
-        emoji = str(payload.emoji)
-        if emoji in [f"{i}\N{combining enclosing keycap}" for i in range(1, len(poll['options']) + 1)]:
-            option_number = int(emoji[0])
-            option = poll['options'][option_number - 1]
+        for poll_id, poll in self.active_polls.items():
+            created_time = datetime.fromisoformat(poll['created_at'])
+            if (current_time - created_time).days > 30:  # Supprimer après 30 jours
+                to_remove.append(poll_id)
 
-            if payload.user_id not in option['voters']:
-                option['voters'].append(payload.user_id)
-                self.save_polls()
-                await self.update_poll_embed(message, poll)
+        for poll_id in to_remove:
+            del self.active_polls[poll_id]
 
-    @commands.Cog.listener()
-    async def on_raw_reaction_remove(self, payload):
-        if payload.channel_id != self.poll_channel_id:
-            return
+        if to_remove:
+            self.save_active_polls()
 
-        message = await self.get_poll_message(payload.message_id)
-        if not message:
-            return
-
-        poll_id = str(payload.message_id)
-        if poll_id not in self.polls:
-            return
-
-        poll = self.polls[poll_id]
-        if not poll['active']:
-            return
-
-        emoji = str(payload.emoji)
-        if emoji in [f"{i}\N{combining enclosing keycap}" for i in range(1, len(poll['options']) + 1)]:
-            option_number = int(emoji[0])
-            option = poll['options'][option_number - 1]
-
-            if payload.user_id in option['voters']:
-                option['voters'].remove(payload.user_id)
-                self.save_polls()
-                await self.update_poll_embed(message, poll)
-
-def setup(bot):
-    bot.add_cog(PollSystem(bot))
+async def setup(bot):
+    await bot.add_cog(Poll(bot))
