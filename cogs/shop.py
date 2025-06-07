@@ -1,438 +1,623 @@
 import discord
 from discord.ext import commands
 import json
-import asyncio
-import random
-import aiohttp
+import os
 from datetime import datetime, timedelta
+import asyncio
+
+USER_DATA_FILE = "user_data.json"
+SHOP_ITEMS_FILE = "shop_items.json"
+PURCHASES_FILE = "user_purchases.json"
 
 class Shop(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.active_buffs = {}  # {user_id: {buff_type: expiry_time}}
-        
-    def load_user_data(self):
-        try:
-            with open('user_data.json', 'r') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            return {}
-    
-    def save_user_data(self, data):
-        with open('user_data.json', 'w') as f:
-            json.dump(data, f, indent=2)
-    
+        self.shop_items = self.load_shop_items()
+        self.user_purchases = self.load_user_purchases()
+
     def load_shop_items(self):
+        """Charge les articles de la boutique"""
         try:
-            with open('shop_items.json', 'r') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            return {"items": []}
-    
-    def get_user_points(self, user_id):
-        data = self.load_user_data()
-        return data.get(str(user_id), {}).get("points", 0)
-    
-    def update_user_points(self, user_id, points):
-        data = self.load_user_data()
-        if str(user_id) not in data:
-            data[str(user_id)] = {"points": 0}
-        data[str(user_id)]["points"] = round(data[str(user_id)]["points"] + points, 2)
-        self.save_user_data(data)
-    
-    def has_active_buff(self, user_id, buff_type):
-        if user_id in self.active_buffs and buff_type in self.active_buffs[user_id]:
-            if datetime.now() < self.active_buffs[user_id][buff_type]:
-                return True
+            if os.path.exists(SHOP_ITEMS_FILE):
+                with open(SHOP_ITEMS_FILE, "r", encoding='utf-8') as f:
+                    return json.load(f)
             else:
-                del self.active_buffs[user_id][buff_type]
-        return False
-    
-    def add_buff(self, user_id, buff_type, duration_hours):
-        if user_id not in self.active_buffs:
-            self.active_buffs[user_id] = {}
-        self.active_buffs[user_id][buff_type] = datetime.now() + timedelta(hours=duration_hours)
+                # Créer le fichier avec les articles par défaut
+                default_items = {
+                    "items": [
+                        {
+                            "id": "bombdm",
+                            "name": "BombDM",
+                            "description": "Envoi un message choisi en DM via le bot",
+                            "price": 300,
+                            "type": "command",
+                            "category": "⚡ Commandes",
+                            "emoji": "💣",
+                            "uses": 1
+                        },
+                        {
+                            "id": "casino_addict",
+                            "name": "Casino Addict",
+                            "description": "Accès à un rôle Discord exclusif de maxi bogoss",
+                            "price": 10000,
+                            "type": "role",
+                            "category": "🎭 Rôles",
+                            "emoji": "🎰",
+                            "role_id": "1259251354967478324"
+                        },
+                        {
+                            "id": "roi_juifs",
+                            "name": "Roi des Juifs",
+                            "description": "Il ne faut pas avoir peur",
+                            "price": 25000,
+                            "type": "role",
+                            "category": "🎭 Rôles",
+                            "emoji": "👑",
+                            "role_id": "1286715796520697887"
+                        },
+                        {
+                            "id": "voleur_points",
+                            "name": "Voleur de Points",
+                            "description": "Vole 10% des points d'un utilisateur au hasard",
+                            "price": 10000,
+                            "type": "command",
+                            "category": "⚡ Commandes",
+                            "emoji": "🦹",
+                            "uses": 1
+                        },
+                        {
+                            "id": "multiplicateur_x2",
+                            "name": "Multiplicateur x2",
+                            "description": "Double tes gains de points pendant 12h",
+                            "price": 10000,
+                            "type": "buff",
+                            "category": "💪 Buffs",
+                            "emoji": "⚡",
+                            "duration": 43200
+                        },
+                        {
+                            "id": "message_fantome",
+                            "name": "Message Fantôme",
+                            "description": "Envoie un message anonyme dans un salon de ton choix",
+                            "price": 750,
+                            "type": "command",
+                            "category": "⚡ Commandes",
+                            "emoji": "👻",
+                            "uses": 1
+                        },
+                        {
+                            "id": "vip_premium",
+                            "name": "VIP Premium",
+                            "description": "Statut VIP avec privilèges exclusifs",
+                            "price": 5000,
+                            "type": "role",
+                            "category": "🎭 Rôles",
+                            "emoji": "💎",
+                            "role_id": "1380935037901471784"
+                        },
+                        {
+                            "id": "chance_boost",
+                            "name": "Boost de Chance",
+                            "description": "Augmente tes chances de gagner au casino pendant 12h",
+                            "price": 5000,
+                            "type": "buff",
+                            "category": "💪 Buffs",
+                            "emoji": "🍀",
+                            "duration": 43200
+                        },
+                        {
+                            "id": "daily_double",
+                            "name": "Daily Double",
+                            "description": "Double ton prochain bonus quotidien",
+                            "price": 1000,
+                            "type": "buff",
+                            "category": "💪 Buffs",
+                            "emoji": "💰",
+                            "uses": 1
+                        }
+                    ]
+                }
+                self.save_shop_items(default_items)
+                return default_items
+        except Exception as e:
+            print(f"Erreur lors du chargement des articles: {e}")
+            return {"items": []}
+
+    def save_shop_items(self, items):
+        """Sauvegarde les articles de la boutique"""
+        try:
+            with open(SHOP_ITEMS_FILE, "w", encoding='utf-8') as f:
+                json.dump(items, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(f"Erreur lors de la sauvegarde des articles: {e}")
+
+    def load_user_purchases(self):
+        """Charge les achats des utilisateurs"""
+        try:
+            if os.path.exists(PURCHASES_FILE):
+                with open(PURCHASES_FILE, "r") as f:
+                    return json.load(f)
+            return {}
+        except Exception as e:
+            print(f"Erreur lors du chargement des achats: {e}")
+            return {}
+
+    def save_user_purchases(self):
+        """Sauvegarde les achats des utilisateurs"""
+        try:
+            with open(PURCHASES_FILE, "w") as f:
+                json.dump(self.user_purchases, f, indent=4)
+        except Exception as e:
+            print(f"Erreur lors de la sauvegarde des achats: {e}")
+
+    def load_user_data(self):
+        """Charge les données des utilisateurs (points)"""
+        try:
+            if os.path.exists(USER_DATA_FILE):
+                with open(USER_DATA_FILE, "r") as f:
+                    return json.load(f)
+            return {}
+        except Exception as e:
+            print(f"Erreur lors de la lecture des données: {e}")
+            return {}
+
+    def save_user_data(self, data):
+        """Sauvegarde les données des utilisateurs"""
+        try:
+            with open(USER_DATA_FILE, "w") as f:
+                json.dump(data, f, indent=4)
+        except Exception as e:
+            print(f"Erreur lors de la sauvegarde: {e}")
+
+    def get_user_points(self, user_id):
+        """Récupère les points d'un utilisateur"""
+        data = self.load_user_data()
+        return data.get(str(user_id), {}).get("points", 1000)
+
+    def update_user_points(self, user_id, new_points):
+        """Met à jour les points d'un utilisateur"""
+        data = self.load_user_data()
+        user_str = str(user_id)
+        if user_str not in data:
+            data[user_str] = {"points": 1000}
+        data[user_str]["points"] = new_points
+        self.save_user_data(data)
+
+    def get_item_by_id(self, item_id):
+        """Récupère un article par son ID"""
+        for item in self.shop_items["items"]:
+            if item["id"].lower() == item_id.lower():
+                return item
+        return None
+
+    def get_user_purchase(self, user_id, item_id):
+        """Récupère l'achat d'un utilisateur pour un article"""
+        user_str = str(user_id)
+        if user_str not in self.user_purchases:
+            return None
+        
+        for purchase in self.user_purchases[user_str]:
+            if purchase["item_id"] == item_id:
+                return purchase
+        return None
+
+    def add_user_purchase(self, user_id, item):
+        """Ajoute un achat pour un utilisateur"""
+        user_str = str(user_id)
+        if user_str not in self.user_purchases:
+            self.user_purchases[user_str] = []
+        
+        purchase = {
+            "item_id": item["id"],
+            "item_name": item["name"],
+            "purchase_date": datetime.now().isoformat(),
+            "price_paid": item["price"],
+            "uses_remaining": item.get("uses", 0),
+            "expires_at": None
+        }
+        
+        # Pour les buffs temporaires
+        if item["type"] == "buff" and "duration" in item:
+            expires_at = datetime.now() + timedelta(seconds=item["duration"])
+            purchase["expires_at"] = expires_at.isoformat()
+        
+        self.user_purchases[user_str].append(purchase)
+        self.save_user_purchases()
 
     @commands.command(name="shop", aliases=["boutique"])
-    async def shop(self, ctx):
+    async def show_shop(self, ctx, category: str = None):
         """Affiche la boutique"""
-        shop_data = self.load_shop_items()
-        user_points = self.get_user_points(ctx.author.id)
-        
-        embed = discord.Embed(title="🛒 Boutique", color=0x00ff00)
-        embed.add_field(name="💰 Tes points", value=f"{user_points}", inline=False)
-        
-        for i, item in enumerate(shop_data["items"], 1):
+        if not self.shop_items["items"]:
+            await ctx.send("❌ La boutique est vide pour le moment !")
+            return
+
+        if category is None:
+            # Afficher les catégories
+            categories = {}
+            for item in self.shop_items["items"]:
+                cat = item.get("category", "🛍️ Divers")
+                if cat not in categories:
+                    categories[cat] = []
+                categories[cat].append(item)
+
+            embed = discord.Embed(
+                title="🛒 Boutique Premium",
+                description="Dépensez vos points dans notre boutique exclusive !",
+                color=0xFF1493
+            )
+
+            for cat_name, items in categories.items():
+                items_text = ""
+                for item in items[:3]:  # Limite à 3 items par catégorie dans l'aperçu
+                    items_text += f"{item.get('emoji', '🛍️')} **{item['name']}** - {item['price']:,} pts\n"
+                
+                if len(items) > 3:
+                    items_text += f"... et {len(items) - 3} autres articles"
+                
+                embed.add_field(name=cat_name, value=items_text, inline=True)
+
             embed.add_field(
-                name=f"{i}. {item['name']} - {item['price']} points",
-                value=item['description'],
+                name="💡 Comment acheter ?",
+                value="`j!buy <nom_article>` - Acheter un article\n`j!inventory` - Voir vos achats",
                 inline=False
             )
+            embed.set_footer(text="Utilisez j!shop <catégorie> pour voir une catégorie spécifique")
+        else:
+            # Afficher une catégorie spécifique
+            filtered_items = []
+            for item in self.shop_items["items"]:
+                if category.lower() in item.get("category", "").lower():
+                    filtered_items.append(item)
+
+            if not filtered_items:
+                await ctx.send("❌ Aucun article trouvé dans cette catégorie !")
+                return
+
+            embed = discord.Embed(
+                title=f"🛒 Boutique - {category.title()}",
+                color=0xFF1493
+            )
+
+            for item in filtered_items:
+                embed.add_field(
+                    name=f"{item.get('emoji', '🛍️')} {item['name']} - {item['price']:,} pts",
+                    value=f"{item['description']}\nType: {item['type'].title()}",
+                    inline=False
+                )
+
+        user_points = self.get_user_points(ctx.author.id)
+        embed.add_field(name="💰 Votre solde", value=f"{user_points:,} points", inline=False)
         
-        embed.set_footer(text="Utilise j!buy <numéro> pour acheter un item")
         await ctx.send(embed=embed)
 
     @commands.command(name="buy", aliases=["acheter"])
-    async def buy_item(self, ctx, item_number: int):
-        """Achète un item de la boutique"""
-        shop_data = self.load_shop_items()
-        user_points = self.get_user_points(ctx.author.id)
-        
-        if item_number < 1 or item_number > len(shop_data["items"]):
-            await ctx.send("❌ Numéro d'item invalide!")
+    async def buy_item(self, ctx, *, item_name: str = None):
+        """Acheter un article"""
+        if item_name is None:
+            await ctx.send("❌ Usage: `j!buy <nom_article>`\nVoir `j!shop` pour la liste des articles.")
             return
-        
-        item = shop_data["items"][item_number - 1]
+
+        # Recherche de l'article
+        item = None
+        for shop_item in self.shop_items["items"]:
+            if shop_item["name"].lower() == item_name.lower() or shop_item["id"].lower() == item_name.lower():
+                item = shop_item
+                break
+
+        if not item:
+            await ctx.send("❌ Article introuvable ! Vérifiez le nom avec `j!shop`.")
+            return
+
+        user_points = self.get_user_points(ctx.author.id)
         
         if user_points < item["price"]:
-            await ctx.send(f"❌ Tu n'as pas assez de points! Il te manque {item['price'] - user_points} points.")
+            embed = discord.Embed(
+                title="💸 Fonds insuffisants",
+                description=f"Il vous manque **{item['price'] - user_points:,}** points pour acheter cet article !",
+                color=0xFF0000
+            )
+            embed.add_field(name="💰 Votre solde", value=f"{user_points:,} points", inline=True)
+            embed.add_field(name="💳 Prix", value=f"{item['price']:,} points", inline=True)
+            await ctx.send(embed=embed)
             return
-        
-        # Débiter les points
-        self.update_user_points(ctx.author.id, -item["price"])
-        
-        # Traiter l'achat selon le type
-        await self.process_purchase(ctx, item)
 
-    async def process_purchase(self, ctx, item):
-        """Traite l'achat selon le type d'item"""
-        item_name = item["name"]
-        
-        if item_name == "BombDM":
-            await self.handle_bomb_dm(ctx)
-        elif item_name == "Spam Master":
-            await self.handle_spam_master(ctx)
-        elif item_name == "Voleur de Points":
-            await self.handle_point_thief(ctx)
-        elif item_name == "Multiplicateur x2":
-            await self.handle_multiplier(ctx)
-        elif item_name == "Message Fantôme":
-            await self.handle_ghost_message(ctx)
-        elif item_name == "Changeur de Pseudo":
-            await self.handle_nickname_change(ctx)
-        elif item_name == "Notification Troll":
-            await self.handle_troll_notification(ctx)
-        elif item_name == "Doubleur de Mise":
-            await self.handle_bet_doubler(ctx)
-        elif item_name == "Bouclier Anti-Vol":
-            await self.handle_theft_shield(ctx)
-        elif item_name == "Resurrection":
-            await self.handle_resurrection(ctx)
-        elif item_name == "Message Doré":
-            await self.handle_golden_message(ctx)
-        elif item_name == "Roulette Russe":
-            await self.handle_russian_roulette(ctx)
-        elif item_name == "Banquier Temporaire":
-            await self.handle_temporary_banker(ctx)
-        elif item_name == "Custom Status":
-            await self.handle_custom_status(ctx)
-        elif item_name == "Avatar Changer":
-            await self.handle_avatar_change(ctx)
-        elif item_name == "Name Changer":
-            await self.handle_name_change(ctx)
-        elif item_name == "Reset Avatar":
-            await self.handle_reset_avatar(ctx)
-        elif item["type"] == "role":
-            await self.handle_role_purchase(ctx, item)
+        # Vérifications spéciales selon le type
+        if item["type"] == "role":
+            try:
+                role = ctx.guild.get_role(int(item["role_id"]))
+                if not role:
+                    await ctx.send("❌ Rôle introuvable ! Contactez un administrateur.")
+                    return
+                
+                if role in ctx.author.roles:
+                    await ctx.send("❌ Vous possédez déjà ce rôle !")
+                    return
+            except:
+                await ctx.send("❌ Erreur avec le rôle ! Contactez un administrateur.")
+                return
 
-    async def handle_bomb_dm(self, ctx):
-        await ctx.send ("💣 BombDM acheté! Écris ton message:")
+        # Confirmation d'achat
+        embed = discord.Embed(
+            title="🛒 Confirmation d'achat",
+            description=f"Êtes-vous sûr de vouloir acheter **{item['name']}** ?",
+            color=0xFFD700
+        )
+        embed.add_field(name="📦 Article", value=item["description"], inline=False)
+        embed.add_field(name="💳 Prix", value=f"{item['price']:,} points", inline=True)
+        embed.add_field(name="💰 Solde après", value=f"{user_points - item['price']:,} points", inline=True)
+        
+        message = await ctx.send(embed=embed)
+        await message.add_reaction("✅")
+        await message.add_reaction("❌")
+
+        def check(reaction, user):
+            return user == ctx.author and str(reaction.emoji) in ["✅", "❌"] and reaction.message.id == message.id
+
         try:
-            msg = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author and m.channel == ctx.channel, timeout=60)
-            await ctx.send("À qui veux-tu l'envoyer? (mentionne la personne)")
-            target_msg = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author and m.channel == ctx.channel, timeout=60)
+            reaction, _ = await self.bot.wait_for("reaction_add", timeout=30.0, check=check)
             
-            if target_msg.mentions:
-                target = target_msg.mentions[0]
+            if str(reaction.emoji) == "❌":
+                await message.edit(embed=discord.Embed(title="❌ Achat annulé", color=0xFF0000))
+                return
+            
+            # Procéder à l'achat
+            new_points = user_points - item["price"]
+            self.update_user_points(ctx.author.id, new_points)
+            
+            # Traitement selon le type d'article
+            if item["type"] == "role":
                 try:
-                    await target.send(f"💣 Message anonyme: {msg.content}")
-                    await ctx.send("✅ Message envoyé!")
-                except:
-                    await ctx.send("❌ Impossible d'envoyer le message (DM fermés?)")
+                    role = ctx.guild.get_role(int(item["role_id"]))
+                    await ctx.author.add_roles(role)
+                    success_msg = f"Rôle **{role.name}** ajouté !"
+                except Exception as e:
+                    # Rembourser si erreur
+                    self.update_user_points(ctx.author.id, user_points)
+                    await ctx.send("❌ Erreur lors de l'attribution du rôle ! Achat annulé.")
+                    return
             else:
-                await ctx.send("❌ Personne mentionnée!")
-        except asyncio.TimeoutError:
-            await ctx.send("❌ Temps écoulé!")
-
-    async def handle_spam_master(self, ctx):
-        await ctx.send("🚀 Spam Master activé! Tu peux envoyer 10 messages sans cooldown maintenant!")
-        # Logique à implémenter selon ton système de cooldown
-
-    async def handle_point_thief(self, ctx):
-        data = self.load_user_data()
-        users_with_points = [(uid, udata) for uid, udata in data.items() 
-                           if udata.get("points", 0) > 0 and int(uid) != ctx.author.id]
-        
-        if not users_with_points:
-            await ctx.send("❌ Aucun utilisateur à voler!")
-            return
-        
-        target_id, target_data = random.choice(users_with_points)
-        stolen_points = round(target_data["points"] * 0.1, 2)
-        
-        self.update_user_points(int(target_id), -stolen_points)
-        self.update_user_points(ctx.author.id, stolen_points)
-        
-        target_user = self.bot.get_user(int(target_id))
-        await ctx.send(f"🕵️ Tu as volé {stolen_points} points à {target_user.mention if target_user else 'quelqu\'un'}!")
-
-    async def handle_multiplier(self, ctx):
-        self.add_buff(ctx.author.id, "multiplier", 24)
-        await ctx.send("✨ Multiplicateur x2 activé pendant 24h! Tes gains de points sont doublés!")
-
-    async def handle_ghost_message(self, ctx):
-        await ctx.send("👻 Dans quel salon veux-tu envoyer un message anonyme?")
-        try:
-            channel_msg = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author, timeout=60)
-            if channel_msg.channel_mentions:
-                target_channel = channel_msg.channel_mentions[0]
-                await ctx.send("Quel message veux-tu envoyer?")
-                content_msg = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author, timeout=60)
-                await target_channel.send(f"👻 Message anonyme: {content_msg.content}")
-                await ctx.send("✅ Message fantôme envoyé!")
-        except asyncio.TimeoutError:
-            await ctx.send("❌ Temps écoulé!")
-
-    async def handle_nickname_change(self, ctx):
-        await ctx.send("🏷️ Mentionne la personne dont tu veux changer le pseudo:")
-        try:
-            target_msg = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author, timeout=60)
-            if target_msg.mentions:
-                target = target_msg.mentions[0]
-                await ctx.send("Quel nouveau pseudo?")
-                nick_msg = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author, timeout=60)
-                
-                old_nick = target.display_name
-                await target.edit(nick=nick_msg.content)
-                await ctx.send(f"✅ Pseudo changé! Il redeviendra normal dans 1h.")
-                
-                # Programmer le retour du pseudo original
-                await asyncio.sleep(3600)  # 1 heure
-                try:
-                    await target.edit(nick=old_nick if old_nick != target.name else None)
-                except:
-                    pass
-        except asyncio.TimeoutError:
-            await ctx.send("❌ Temps écoulé!")
-        except discord.Forbidden:
-            await ctx.send("❌ Je n'ai pas les permissions pour changer ce pseudo!")
-
-    async def handle_troll_notification(self, ctx):
-        await ctx.send("😈 Mentionne ta victime:")
-        try:
-            target_msg = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author, timeout=60)
-            if target_msg.mentions:
-                target = target_msg.mentions[0]
-                troll_messages = [
-                    "🔔 Ding dong!",
-                    "📢 ATTENTION!",
-                    "🚨 ALERTE!",
-                    "⚡ NOTIFICATION IMPORTANTE!",
-                    "🎉 SURPRISE!"
-                ]
-                
-                for msg in troll_messages:
-                    await ctx.send(f"{target.mention} {msg}")
-                    await asyncio.sleep(1)
-                
-                await ctx.send("😈 Troll réussi!")
-        except asyncio.TimeoutError:
-            await ctx.send("❌ Temps écoulé!")
-
-    async def handle_bet_doubler(self, ctx):
-        self.add_buff(ctx.author.id, "bet_doubler", 1)
-        await ctx.send("🎰 Doubleur de mise activé! Ta prochaine commande casino doublera automatiquement ta mise!")
-
-    async def handle_theft_shield(self, ctx):
-        self.add_buff(ctx.author.id, "theft_shield", 48)
-        await ctx.send("🛡️ Bouclier anti-vol activé pendant 48h! Tes points sont protégés!")
-
-    async def handle_resurrection(self, ctx):
-        # Logique à adapter selon ton système de tracking des pertes
-        recovered_points = 1000  # Exemple
-        self.update_user_points(ctx.author.id, recovered_points)
-        await ctx.send(f"🔄 Résurrection! Tu as récupéré {recovered_points} points!")
-
-    async def handle_golden_message(self, ctx):
-        self.add_buff(ctx.author.id, "golden_message", 1)
-        await ctx.send("✨ Message doré prêt! Ton prochain message sera mis en évidence!")
-
-    async def handle_russian_roulette(self, ctx):
-        user_points = self.get_user_points(ctx.author.id)
-        if random.choice([True, False]):
-            self.update_user_points(ctx.author.id, user_points)
-            await ctx.send(f"🎰 JACKPOT! Tu as doublé tes points! Nouveau total: {user_points * 2}")
-        else:
-            self.update_user_points(ctx.author.id, -user_points)
-            await ctx.send("💀 BANG! Tu as perdu tous tes points... Mes condoléances.")
-
-    async def handle_temporary_banker(self, ctx):
-        self.add_buff(ctx.author.id, "banker", 12)
-        await ctx.send("🏦 Tu es maintenant banquier temporaire! Tu reçois 1% des achats pendant 12h!")
-
-    async def handle_custom_status(self, ctx):
-        await ctx.send("🎭 Quel statut veux-tu que j'affiche?")
-        try:
-            status_msg = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author, timeout=60)
-            await self.bot.change_presence(activity=discord.Game(name=status_msg.content))
-            await ctx.send("✅ Statut personnalisé activé pour 6h!")
+                success_msg = "Article ajouté à votre inventaire !"
             
-            # Retour au statut normal après 6h
-            await asyncio.sleep(21600)  # 6 heures
-            await self.bot.change_presence(activity=None)
-        except asyncio.TimeoutError:
-            await ctx.send("❌ Temps écoulé!")
-
-    async def handle_avatar_change(self, ctx):
-        await ctx.send("🖼️ Envoie l'URL de la nouvelle image ou attache une image!")
-        try:
-            msg = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author and m.channel == ctx.channel, timeout=120)
+            # Enregistrer l'achat
+            self.add_user_purchase(ctx.author.id, item)
             
-            url = None
-            if msg.attachments:
-                url = msg.attachments[0].url
-            elif msg.content.startswith(('http://', 'https://')):
-                url = msg.content
-            else:
-                await ctx.send("❌ URL invalide ou pas d'image attachée!")
-                return
-
-            # Télécharger et changer l'avatar
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        await ctx.send("❌ Impossible de télécharger l'image!")
-                        return
-                    
-                    content_type = resp.headers.get('content-type', '')
-                    if not content_type.startswith('image/'):
-                        await ctx.send("❌ Le fichier n'est pas une image valide!")
-                        return
-                    
-                    content_length = resp.headers.get('content-length')
-                    if content_length and int(content_length) > 8 * 1024 * 1024:
-                        await ctx.send("❌ L'image est trop grande! (max 8MB)")
-                        return
-                    
-                    data = await resp.read()
-
-            await self.bot.user.edit(avatar=data)
-            
+            # Message de succès
             embed = discord.Embed(
-                title="✅ Avatar du bot changé!",
-                description=f"L'avatar a été changé par {ctx.author.mention}!",
-                color=0x00ff00
+                title="✅ Achat réussi !",
+                description=f"Vous avez acheté **{item['name']}** !",
+                color=0x00FF00
             )
-            embed.set_thumbnail(url=self.bot.user.avatar.url)
-            await ctx.send(embed=embed)
+            embed.add_field(name="🎉 Résultat", value=success_msg, inline=False)
+            embed.add_field(name="💰 Nouveau solde", value=f"{new_points:,} points", inline=False)
             
-        except discord.HTTPException as e:
-            if e.status == 429:
-                await ctx.send("❌ Trop de changements d'avatar! Discord limite à 2 changements par heure.")
-            else:
-                await ctx.send(f"❌ Erreur Discord: {e}")
-        except asyncio.TimeoutError:
-            await ctx.send("❌ Temps écoulé!")
-        except Exception as e:
-            await ctx.send(f"❌ Erreur: {e}")
-
-    async def handle_name_change(self, ctx):
-        await ctx.send("📝 Quel nouveau nom veux-tu donner au bot?")
-        try:
-            name_msg = await self.bot.wait_for('message', check=lambda m: m.author == ctx.author and m.channel == ctx.channel, timeout=60)
-            new_name = name_msg.content
-            
-            if len(new_name) > 32:
-                await ctx.send("❌ Le nom est trop long! (max 32 caractères)")
-                return
-            
-            if len(new_name) < 2:
-                await ctx.send("❌ Le nom est trop court! (min 2 caractères)")
-                return
-
-            old_name = self.bot.user.name
-            await self.bot.user.edit(username=new_name)
-            
-            embed = discord.Embed(
-                title="✅ Nom du bot changé!",
-                description=f"Nom changé de **{old_name}** vers **{new_name}** par {ctx.author.mention}",
-                color=0x00ff00
-            )
-            await ctx.send(embed=embed)
-            
-        except discord.HTTPException as e:
-            if e.status == 429:
-                await ctx.send("❌ Trop de changements de nom! Discord limite à 2 changements par heure.")
-            else:
-                await ctx.send(f"❌ Erreur Discord: {e}")
-        except asyncio.TimeoutError:
-            await ctx.send("❌ Temps écoulé!")
-        except Exception as e:
-            await ctx.send(f"❌ Erreur: {e}")
-
-    async def handle_reset_avatar(self, ctx):
-        try:
-            await self.bot.user.edit(avatar=None)
-            embed = discord.Embed(
-                title="✅ Avatar remis par défaut!",
-                description=f"Avatar réinitialisé par {ctx.author.mention}",
-                color=0x00ff00
-            )
-            await ctx.send(embed=embed)
-        except Exception as e:
-            await ctx.send(f"❌ Erreur: {e}")
-
-    async def handle_role_purchase(self, ctx, item):
-        try:
-            role = ctx.guild.get_role(int(item["role_id"]))
-            if role:
-                await ctx.author.add_roles(role)
-                await ctx.send(f"✅ Rôle {role.name} ajouté!")
-            else:
-                await ctx.send("❌ Rôle introuvable!")
-        except Exception as e:
-            await ctx.send(f"❌ Erreur: {e}")
-
-    @commands.command(name="buffs")
-    async def check_buffs(self, ctx):
-        """Vérifie tes buffs actifs"""
-        if ctx.author.id not in self.active_buffs:
-            await ctx.send("❌ Aucun buff actif!")
-            return
-        
-        embed = discord.Embed(title="✨ Tes buffs actifs", color=0xffff00)
-        for buff_type, expiry in self.active_buffs[ctx.author.id].items():
-            if datetime.now() < expiry:
-                time_left = expiry - datetime.now()
-                hours = int(time_left.total_seconds() // 3600)
-                minutes = int((time_left.total_seconds() % 3600) // 60)
+            if item["type"] == "command":
                 embed.add_field(
-                    name=buff_type.replace("_", " ").title(),
-                    value=f"Expire dans {hours}h {minutes}m",
+                    name="ℹ️ Utilisation", 
+                    value=f"Utilisez `j!use {item['id']}` pour utiliser cet article",
                     inline=False
                 )
+            
+            await message.edit(embed=embed)
+
+        except asyncio.TimeoutError:
+            await message.edit(embed=discord.Embed(title="⏰ Temps écoulé - Achat annulé", color=0xFF0000))
+
+    @commands.command(name="inventory", aliases=["inv", "inventaire"])
+    async def show_inventory(self, ctx):
+        """Affiche l'inventaire de l'utilisateur"""
+        user_str = str(ctx.author.id)
         
+        if user_str not in self.user_purchases or not self.user_purchases[user_str]:
+            embed = discord.Embed(
+                title="📦 Inventaire vide",
+                description="Vous n'avez aucun achat ! Visitez `j!shop` pour découvrir nos articles.",
+                color=0x808080
+            )
+            await ctx.send(embed=embed)
+            return
+
+        embed = discord.Embed(
+            title=f"📦 Inventaire de {ctx.author.display_name}",
+            color=0x7289DA
+        )
+
+        current_time = datetime.now()
+        active_items = []
+        expired_items = []
+
+        for purchase in self.user_purchases[user_str]:
+            # Vérifier si l'article a expiré
+            if purchase.get("expires_at"):
+                expires_at = datetime.fromisoformat(purchase["expires_at"])
+                if current_time > expires_at:
+                    expired_items.append(purchase)
+                    continue
+            
+            # Vérifier si l'article a encore des utilisations
+            if purchase.get("uses_remaining", 1) <= 0:
+                continue
+                
+            active_items.append(purchase)
+
+        if not active_items:
+            embed.description = "Tous vos articles ont expiré ou ont été utilisés !"
+        else:
+            for purchase in active_items:
+                item_info = f"Acheté le: {purchase['purchase_date'][:10]}\n"
+                item_info += f"Prix payé: {purchase['price_paid']:,} points\n"
+                
+                if purchase.get("uses_remaining"):
+                    item_info += f"Utilisations restantes: {purchase['uses_remaining']}\n"
+                
+                if purchase.get("expires_at"):
+                    expires_at = datetime.fromisoformat(purchase["expires_at"])
+                    time_left = expires_at - current_time
+                    hours_left = int(time_left.total_seconds() // 3600)
+                    item_info += f"⏰ Expire dans: {hours_left}h"
+                
+                embed.add_field(
+                    name=f"📦 {purchase['item_name']}",
+                    value=item_info,
+                    inline=True
+                )
+
+        # Nettoyage des articles expirés
+        if expired_items:
+            for expired in expired_items:
+                self.user_purchases[user_str].remove(expired)
+            self.save_user_purchases()
+            
+            if expired_items:
+                embed.add_field(
+                    name="🗑️ Articles expirés nettoyés",
+                    value=f"{len(expired_items)} article(s) expiré(s) supprimé(s)",
+                    inline=False
+                )
+
+        embed.set_footer(text="Utilisez j!use <item_id> pour utiliser vos articles")
         await ctx.send(embed=embed)
 
-    # Hook pour le multiplicateur de points
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author.bot or message.content.startswith("j!"):
+    @commands.command(name="use", aliases=["utiliser"])
+    async def use_item(self, ctx, item_id: str = None):
+        """Utiliser un article acheté"""
+        if item_id is None:
+            await ctx.send("❌ Usage: `j!use <item_id>`\nVoir `j!inventory` pour vos articles.")
             return
-        
-        # Vérifier les buffs
-        points_to_add = 0.1
-        
-        if self.has_active_buff(message.author.id, "multiplier"):
-            points_to_add *= 2
+
+        user_str = str(ctx.author.id)
+        if user_str not in self.user_purchases:
+            await ctx.send("❌ Vous n'avez aucun achat !")
+            return
+
+        # Trouver l'achat
+        purchase = None
+        for p in self.user_purchases[user_str]:
+            if p["item_id"].lower() == item_id.lower():
+                purchase = p
+                break
+
+        if not purchase:
+            await ctx.send("❌ Article non trouvé dans votre inventaire !")
+            return
+
+        # Vérifier les utilisations restantes
+        if purchase.get("uses_remaining", 1) <= 0:
+            await ctx.send("❌ Cet article n'a plus d'utilisations restantes !")
+            return
+
+        # Vérifier l'expiration
+        if purchase.get("expires_at"):
+            expires_at = datetime.fromisoformat(purchase["expires_at"])
+            if datetime.now() > expires_at:
+                await ctx.send("❌ Cet article a expiré !")
+                return
+
+        # Exécuter l'action selon le type d'article
+        item = self.get_item_by_id(item_id)
+        if not item:
+            await ctx.send("❌ Article introuvable dans la boutique !")
+            return
+
+        try:
+            success = await self.execute_item_action(ctx, item, purchase)
+            if success:
+                # Décrémenter les utilisations
+                if "uses_remaining" in purchase:
+                    purchase["uses_remaining"] -= 1
+                    if purchase["uses_remaining"] <= 0:
+                        self.user_purchases[user_str].remove(purchase)
+                    self.save_user_purchases()
+        except Exception as e:
+            await ctx.send(f"❌ Erreur lors de l'utilisation de l'article: {e}")
+
+    async def execute_item_action(self, ctx, item, purchase):
+        """Exécute l'action d'un article"""
+        if item["id"] == "bombdm":
+            await ctx.send("💣 **BombDM activé !** Tapez votre message à envoyer en DM:")
             
-        if self.has_active_buff(message.author.id, "golden_message"):
-            # Mettre en évidence le message
-            embed = discord.Embed(description=f"✨ **MESSAGE DORÉ** ✨\n{message.content}", color=0xffd700)
-            embed.set_author(name=message.author.display_name, icon_url=message.author.avatar.url)
-            await message.channel.send(embed=embed)
-            # Retirer le buff
-            del self.active_buffs[message.author.id]["golden_message"]
+            def check(m):
+                return m.author == ctx.author and m.channel == ctx.channel
+            
+            try:
+                message = await self.bot.wait_for('message', timeout=60.0, check=check)
+                # Ici vous pouvez ajouter la logique pour envoyer le DM
+                await ctx.send(f"✅ Message prêt à être envoyé: `{message.content}`")
+                return True
+            except asyncio.TimeoutError:
+                await ctx.send("⏰ Temps écoulé ! Utilisation annulée.")
+                return False
+                
+        elif item["id"] == "voleur_points":
+            # Logique pour voler des points
+            guild_members = [m for m in ctx.guild.members if not m.bot and m.id != ctx.author.id]
+            if not guild_members:
+                await ctx.send("❌ Aucun membre à voler !")
+                return False
+                
+            target = random.choice(guild_members)
+            target_points = self.get_user_points(target.id)
+            stolen_amount = int(target_points * 0.1)
+            
+            if stolen_amount <= 0:
+                await ctx.send(f"❌ {target.display_name} n'a pas assez de points à voler !")
+                return False
+            
+            # Effectuer le vol
+            new_target_points = target_points - stolen_amount
+            user_points = self.get_user_points(ctx.author.id)
+            new_user_points = user_points + stolen_amount
+            
+            self.update_user_points(target.id, new_target_points)
+            self.update_user_points(ctx.author.id, new_user_points)
+            
+            embed = discord.Embed(
+                title="🦹 Vol réussi !",
+                description=f"Vous avez volé **{stolen_amount:,} points** à {target.display_name} !",
+                color=0x8B0000
+            )
+            embed.add_field(name="💰 Votre nouveau solde", value=f"{new_user_points:,} points", inline=False)
+            await ctx.send(embed=embed)
+            return True
+            
+        elif item["id"] == "message_fantome":
+            await ctx.send("👻 **Message Fantôme activé !** Mentionnez le salon puis tapez votre message:")
+            await ctx.send("Format: `#salon Votre message anonyme`")
+            
+            def check(m):
+                return m.author == ctx.author and m.channel == ctx.channel
+            
+            try:
+                message = await self.bot.wait_for('message', timeout=60.0, check=check)
+                if message.channel_mentions:
+                    target_channel = message.channel_mentions[0]
+                    anonymous_msg = message.content.split(' ', 1)[1] if len(message.content.split(' ', 1)) > 1 else "Message anonyme"
+                    
+                    embed = discord.Embed(
+                        title="👻 Message Anonyme",
+                        description=anonymous_msg,
+                        color=0x36393F
+                    )
+                    embed.set_footer(text="Message envoyé par un utilisateur anonyme")
+                    
+                    await target_channel.send(embed=embed)
+                    await ctx.send("✅ Message anonyme envoyé !")
+                    return True
+                else:
+                    await ctx.send("❌ Veuillez mentionner un salon !")
+                    return False
+            except asyncio.TimeoutError:
+                await ctx.send("⏰ Temps écoulé ! Utilisation annulée.")
+                return False
+        
+        # Actions par défaut selon le type
+        elif item["type"] == "command":
+            await ctx.send(f"✅ {item['name']} utilisé avec succès !")
+            return True
+        elif item["type"] == "buff":
+            await ctx.send(f"✅ {item['name']} activé !")
+            return True
+        
+        return False
 
 async def setup(bot):
     await bot.add_cog(Shop(bot))
