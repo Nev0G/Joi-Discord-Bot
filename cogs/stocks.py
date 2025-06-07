@@ -549,7 +549,7 @@ class Stocks(commands.Cog):
         if not portfolio:
             embed = discord.Embed(
                 title=f"📊 Portefeuille de {target_user.display_name}",
-                description="🛒 Aucune position ouverte\n💡 Utilisez `j!buy` pour commencer à investir!",
+                description="🛒 Aucune position ouverte\n💡 Utilisez `j!sbuy` pour commencer à investir!",
                 color=0xFFD700
             )
             embed.add_field(name="💰 Liquidités", value=self.format_price(user_points), inline=True)
@@ -857,7 +857,7 @@ class Stocks(commands.Cog):
         )
 
         # Dernière mise à jour
-        embed.set_footer(text=f"💡 j!buy {symbol} <quantité> pour acheter • Données temps réel")
+        embed.set_footer(text=f"💡 j!sbuy {symbol} <quantité> pour acheter • Données temps réel")
         embed.timestamp = datetime.now()
 
         await message.edit(embed=embed)
