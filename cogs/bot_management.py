@@ -26,6 +26,7 @@ class BotManagement(commands.Cog):
         await ctx.send("🔄 Mise à jour du bot depuis le dépôt Git en cours...")
 
         try:
+            # Git pull
             result = subprocess.run(["git", "pull"], capture_output=True, text=True)
             if result.returncode == 0:
                 await ctx.send(f"✅ Mise à jour terminée :\n```{result.stdout.strip()}```")
@@ -34,9 +35,14 @@ class BotManagement(commands.Cog):
                 return
             
             await ctx.send("♻️ Redémarrage du bot en cours...")
-
+            await asyncio.sleep(1)  # Petite pause pour envoyer le message
+            
+            # Fermer proprement la connexion Discord
             await self.bot.close()
-            os.execl(sys.executable, sys.executable, *sys.argv)
+            
+            # Redémarrer le processus
+            python = sys.executable
+            os.execl(python, python, *sys.argv)
 
         except Exception as e:
             await ctx.send(f"❌ Une erreur est survenue : `{e}`")

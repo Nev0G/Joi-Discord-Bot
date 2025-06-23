@@ -219,6 +219,34 @@ class SocialMediaLinksManager(commands.Cog):
         embed.set_footer(text=f"Total: {sum(len(links) for links in platforms.values())} liens")
         return embed
     
+    async def create_response_embed(self, platform: str, alternative_url: str, author: discord.Member) -> discord.Embed:
+        """Crée un embed de réponse pour le lien détecté"""
+        config = self.site_configs[platform]
+        
+        embed = discord.Embed(
+            title=f"{config['emoji']} {config['name']} détecté",
+            description=f"Lien partagé par {author.mention}",
+            color=discord.Color.green(),
+            timestamp=datetime.utcnow()
+        )
+        
+        embed.add_field(
+            name="🔗 Lien alternatif",
+            value=f"[Cliquez ici pour accéder au contenu]({alternative_url})",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="ℹ️ Informations",
+            value="Le message original a été remplacé par ce lien alternatif pour une meilleure expérience.",
+            inline=False
+        )
+        
+        embed.set_thumbnail(url=author.display_avatar.url)
+        embed.set_footer(text=f"Partagé par {author.display_name}")
+        
+        return embed
+    
     async def update_or_create_embed(self, channel) -> None:
         """Met à jour ou crée l'embed dans le canal"""
         try:
@@ -243,6 +271,34 @@ class SocialMediaLinksManager(commands.Cog):
         except Exception as e:
             print(f"Erreur lors de la mise à jour de l'embed: {e}")
     
+    async def send_duplicate_warning(self, channel, author: discord.Member, platform: str) -> None:
+        """Envoie un message d'avertissement pour les doublons"""
+        config = self.site_configs[platform]
+        
+        embed = discord.Embed(
+            title="⚠️ Lien déjà partagé",
+            description=f"{author.mention}, ce lien de **{config['name']}** a déjà été partagé dans ce canal !",
+            color=discord.Color.orange(),
+            timestamp=datetime.utcnow()
+        )
+        
+        embed.add_field(
+            name="💡 Conseil",
+            value="Vérifiez l'embed des liens déjà partagés dans ce canal avant de poster.",
+            inline=False
+        )
+        
+        embed.set_thumbnail(url=author.display_avatar.url)
+        embed.set_footer(text="Ce message se supprimera automatiquement dans 15 secondes")
+        
+        # Envoyer le message et le supprimer après 15 secondes
+        warning_message = await channel.send(embed=embed)
+        await asyncio.sleep(15)
+        try:
+            await warning_message.delete()
+        except discord.NotFound:
+            pass  # Le message a déjà été supprimé
+    
     @commands.Cog.listener()
     async def on_message(self, message):
         """Listener principal pour détecter les liens dans les messages"""
@@ -251,7 +307,8 @@ class SocialMediaLinksManager(commands.Cog):
             return
         
         # Vérifier les permissions du bot dans le canal
-        if not message.channel.permissions_for(message.guild.me).send_messages:
+        permissions = message.channel.permissions_for(message.guild.me)
+        if not (permissions.send_messages and permissions.manage_messages and permissions.embed_links):
             return
         
         # Détecter les liens de réseaux sociaux
@@ -267,14 +324,35 @@ class SocialMediaLinksManager(commands.Cog):
         
         # Vérifier si c'est un doublon
         if self.is_duplicate_link(channel_id, link_identifier):
-            await message.reply(
-                f"❌ Ce lien de **{self.site_configs[platform]['name']}** a déjà été partagé dans ce canal !",
-                delete_after=10
-            )
+            # Supprimer le message original
+            try:
+                await message.delete()
+            except discord.NotFound:
+                pass  # Le message a déjà été supprimé
+            except discord.Forbidden:
+                print(f"Permissions insuffisantes pour supprimer le message dans {message.channel.name}")
+            
+            # Envoyer l'avertissement de doublon
+            await self.send_duplicate_warning(message.channel, message.author, platform)
             return
         
         # Générer l'URL alternative
         alternative_url = self.generate_alternative_url(platform, groups)
+        
+        # Supprimer le message original en premier
+        try:
+            await message.delete()
+        except discord.NotFound:
+            pass  # Le message a déjà été supprimé
+        except discord.Forbidden:
+            print(f"Permissions insuffisantes pour supprimer le message dans {message.channel.name}")
+            # Si on ne peut pas supprimer, on continue quand même
+        
+        # Créer l'embed de réponse
+        response_embed = await self.create_response_embed(platform, alternative_url, message.author)
+        
+        # Envoyer l'embed de réponse
+        await message.channel.send(embed=response_embed)
         
         # Ajouter le lien aux données
         link_data = {
@@ -289,15 +367,7 @@ class SocialMediaLinksManager(commands.Cog):
         
         self.add_link_to_data(channel_id, link_data)
         
-        # Répondre à l'utilisateur avec l'URL alternative
-        config = self.site_configs[platform]
-        await message.reply(
-            f"{config['emoji']} **{config['name']}** détecté !\n"
-            f"Lien alternatif: {alternative_url}",
-            delete_after=20
-        )
-        
-        # Mettre à jour l'embed
+        # Mettre à jour l'embed fixe  
         await self.update_or_create_embed(message.channel)
     
     @tasks.loop(hours=24)
@@ -345,9 +415,6 @@ class SocialMediaLinksManager(commands.Cog):
         """Attend que le bot soit prêt avant de démarrer le nettoyage"""
         await self.bot.wait_until_ready()
     
-    def cog_unload(self):
-        """Nettoie les ressources lors du déchargement du cog"""
-        self.cleanup_task.cancel()
     
     @commands.command(name="force_cleanup")
     @commands.has_permissions(manage_messages=True)
