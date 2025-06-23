@@ -10,12 +10,13 @@ from typing import Dict, List, Optional, Tuple
 class SocialMediaLinksManager(commands.Cog):
     """
     Cog pour détecter et gérer les liens de réseaux sociaux
-    Répond uniquement avec l'URL alternative et mentionne l'auteur
+    Maintient un embed fixe par canal avec les liens détectés
     """
     
     def __init__(self, bot):
         self.bot = bot
         self.data_file = "social_links_data.json"
+        self.embed_messages_file = "embed_messages.json"
         
         # Configuration des plateformes supportées
         self.site_configs = {
@@ -73,6 +74,7 @@ class SocialMediaLinksManager(commands.Cog):
         
         # Chargement des données au démarrage
         self.links_data = self.load_data()
+        self.embed_messages = self.load_embed_messages()
         
         # Démarrage de la tâche de nettoyage automatique
         self.cleanup_task.start()
@@ -94,6 +96,24 @@ class SocialMediaLinksManager(commands.Cog):
                 json.dump(self.links_data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"Erreur lors de la sauvegarde des données: {e}")
+    
+    def load_embed_messages(self) -> Dict:
+        """Charge les IDs des messages d'embed par canal"""
+        try:
+            if os.path.exists(self.embed_messages_file):
+                with open(self.embed_messages_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as e:
+            print(f"Erreur lors du chargement des embeds: {e}")
+        return {}
+    
+    def save_embed_messages(self) -> None:
+        """Sauvegarde les IDs des messages d'embed"""
+        try:
+            with open(self.embed_messages_file, 'w', encoding='utf-8') as f:
+                json.dump(self.embed_messages, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Erreur lors de la sauvegarde des embeds: {e}")
     
     def detect_social_link(self, text: str) -> Optional[Tuple[str, str, List[str]]]:
         """
@@ -153,6 +173,76 @@ class SocialMediaLinksManager(commands.Cog):
         self.links_data[channel_id].append(link_data)
         self.save_data()
     
+    def create_embed(self, channel_id: str) -> discord.Embed:
+        """Crée l'embed avec tous les liens du canal"""
+        embed = discord.Embed(
+            title="🔗 Liens de Réseaux Sociaux",
+            description="Liens détectés dans ce canal (dernières 24h)",
+            color=discord.Color.blue(),
+            timestamp=datetime.utcnow()
+        )
+        
+        if channel_id not in self.links_data or not self.links_data[channel_id]:
+            embed.add_field(
+                name="Aucun lien",
+                value="Aucun lien détecté pour le moment",
+                inline=False
+            )
+            return embed
+        
+        # Grouper les liens par plateforme
+        platforms = {}
+        for link_data in self.links_data[channel_id]:
+            platform = link_data["platform"]
+            if platform not in platforms:
+                platforms[platform] = []
+            platforms[platform].append(link_data)
+        
+        # Ajouter les liens groupés par plateforme
+        for platform, links in platforms.items():
+            config = self.site_configs[platform]
+            value = ""
+            for link_data in links[-5:]:  # Limiter à 5 liens par plateforme
+                alt_url = link_data["alternative_url"]
+                author = link_data["author"]
+                value += f"• [Lien]({alt_url}) - par <@{author}>\n"
+            
+            if len(links) > 5:
+                value += f"... et {len(links) - 5} autres liens\n"
+            
+            embed.add_field(
+                name=f"{config['emoji']} {config['name']} ({len(links)})",
+                value=value or "Aucun lien",
+                inline=False
+            )
+        
+        embed.set_footer(text=f"Total: {sum(len(links) for links in platforms.values())} liens")
+        return embed
+    
+    async def update_or_create_embed(self, channel) -> None:
+        """Met à jour ou crée l'embed dans le canal"""
+        try:
+            channel_id = str(channel.id)
+            embed = self.create_embed(channel_id)
+            
+            # Vérifier si un message d'embed existe déjà
+            if channel_id in self.embed_messages:
+                try:
+                    message = await channel.fetch_message(self.embed_messages[channel_id])
+                    await message.edit(embed=embed)
+                    return
+                except discord.NotFound:
+                    # Le message n'existe plus, en créer un nouveau
+                    del self.embed_messages[channel_id]
+            
+            # Créer un nouveau message d'embed
+            message = await channel.send(embed=embed)
+            self.embed_messages[channel_id] = message.id
+            self.save_embed_messages()
+            
+        except Exception as e:
+            print(f"Erreur lors de la mise à jour de l'embed: {e}")
+    
     @commands.Cog.listener()
     async def on_message(self, message):
         """Listener principal pour détecter les liens dans les messages"""
@@ -178,7 +268,7 @@ class SocialMediaLinksManager(commands.Cog):
         # Vérifier si c'est un doublon
         if self.is_duplicate_link(channel_id, link_identifier):
             await message.reply(
-                f"BOUCLED ❌ Ce lien de **{self.site_configs[platform]['name']}** a déjà été partagé salope !",
+                f"❌ Ce lien de **{self.site_configs[platform]['name']}** a déjà été partagé dans ce canal !",
                 delete_after=10
             )
             return
@@ -199,30 +289,16 @@ class SocialMediaLinksManager(commands.Cog):
         
         self.add_link_to_data(channel_id, link_data)
         
-        # Créer l'embed avec l'URL alternative et mention de l'auteur
+        # Répondre à l'utilisateur avec l'URL alternative
         config = self.site_configs[platform]
-        embed = discord.Embed(
-            title=f"{config['emoji']} {config['name']} - Lien Embed Fix",
-            color=discord.Color.blue(),
-            timestamp=datetime.utcnow()
+        await message.reply(
+            f"{config['emoji']} **{config['name']}** détecté !\n"
+            f"Lien alternatif: {alternative_url}",
+            delete_after=20
         )
         
-        embed.add_field(
-            name="Lien alternatif",
-            value=f"[Cliquez ici]({alternative_url})",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="Partagé par",
-            value=f"{message.author.mention}",
-            inline=True
-        )
-        
-        embed.set_footer(text="Lien embed fix automatique")
-        
-        # Envoyer l'embed
-        await message.channel.send(embed=embed)
+        # Mettre à jour l'embed
+        await self.update_or_create_embed(message.channel)
     
     @tasks.loop(hours=24)
     async def cleanup_task(self):
@@ -230,14 +306,21 @@ class SocialMediaLinksManager(commands.Cog):
         print("🧹 Début du nettoyage automatique des liens...")
         
         current_time = datetime.utcnow()
+        channels_to_update = set()
         
         # Nettoyer les données
         for channel_id, links in list(self.links_data.items()):
+            original_count = len(links)
+            
             # Filtrer les liens de moins de 24 heures
             self.links_data[channel_id] = [
                 link for link in links
                 if current_time - datetime.fromisoformat(link["timestamp"]) < timedelta(hours=24)
             ]
+            
+            # Si des liens ont été supprimés, marquer le canal pour mise à jour
+            if len(self.links_data[channel_id]) != original_count:
+                channels_to_update.add(channel_id)
             
             # Supprimer les canaux vides
             if not self.links_data[channel_id]:
@@ -245,12 +328,26 @@ class SocialMediaLinksManager(commands.Cog):
         
         # Sauvegarder les données nettoyées
         self.save_data()
-        print("✅ Nettoyage terminé.")
+        
+        # Mettre à jour les embeds des canaux concernés
+        for channel_id in channels_to_update:
+            try:
+                channel = self.bot.get_channel(int(channel_id))
+                if channel:
+                    await self.update_or_create_embed(channel)
+            except Exception as e:
+                print(f"Erreur lors de la mise à jour de l'embed du canal {channel_id}: {e}")
+        
+        print(f"✅ Nettoyage terminé. {len(channels_to_update)} canaux mis à jour.")
     
     @cleanup_task.before_loop
     async def before_cleanup(self):
         """Attend que le bot soit prêt avant de démarrer le nettoyage"""
         await self.bot.wait_until_ready()
+    
+    def cog_unload(self):
+        """Nettoie les ressources lors du déchargement du cog"""
+        self.cleanup_task.cancel()
     
     @commands.command(name="force_cleanup")
     @commands.has_permissions(manage_messages=True)
