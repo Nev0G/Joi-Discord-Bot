@@ -75,3 +75,6 @@ class Help(commands.Cog):
         embed.set_footer(text="Utilisez j!help <commande> pour plus d'infos sur une commande spécifique")
         
         await ctx.send(embed=embed)
+        
+        async def setup(bot):
+            await bot.add_cog(Help(bot))
