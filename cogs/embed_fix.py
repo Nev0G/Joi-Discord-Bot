@@ -203,5 +203,5 @@ class LinkTracker(commands.Cog):
         for channel_id in list(self.links.keys()):
             await self.update_embed(channel_id)
 
-def setup(bot):
-    bot.add_cog(LinkTracker(bot))
+async def setup(bot):
+    await bot.add_cog(LinkTracker(bot))
