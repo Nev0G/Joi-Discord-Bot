@@ -1,13 +1,24 @@
 import discord
 from discord.ext import commands, tasks
-import re
 import json
-import os
+import re
+import asyncio
 from datetime import datetime, timedelta
+import os
+from typing import Dict, List, Optional, Tuple
 
-class LinkTracker(commands.Cog):
+class SocialMediaLinksManager(commands.Cog):
+    """
+    Cog pour détecter et gérer les liens de réseaux sociaux
+    Maintient un embed fixe par canal avec les liens détectés
+    """
+    
     def __init__(self, bot):
         self.bot = bot
+        self.data_file = "social_links_data.json"
+        self.embed_messages_file = "embed_messages.json"
+        
+        # Configuration des plateformes supportées
         self.site_configs = {
             "twitter": {
                 "patterns": [
@@ -15,21 +26,24 @@ class LinkTracker(commands.Cog):
                     r"https?://(?:mobile\.)?(?:twitter\.com|x\.com)/(\w+)/status/(\d+)",
                 ],
                 "alternative_template": "https://fxtwitter.com/{}/status/{}",
-                "emoji": "🐦"
+                "emoji": "🐦",
+                "name": "Twitter/X"
             },
             "instagram_post": {
                 "patterns": [
                     r"https?://(?:www\.)?instagram\.com/p/([\w-]+)/?",
                 ],
                 "alternative_template": "https://ddinstagram.com/p/{}",
-                "emoji": "📸"
+                "emoji": "📸",
+                "name": "Instagram Post"
             },
             "instagram_reel": {
                 "patterns": [
                     r"https?://(?:www\.)?instagram\.com/reel/([\w-]+)/?",
                 ],
                 "alternative_template": "https://ddinstagram.com/reel/{}",
-                "emoji": "🎬"
+                "emoji": "🎬",
+                "name": "Instagram Reel"
             },
             "tiktok": {
                 "patterns": [
@@ -37,171 +51,344 @@ class LinkTracker(commands.Cog):
                     r"https?://(?:www|vm|m)\.tiktok\.com/@[\w.-]+/video/(\d+)",
                 ],
                 "alternative_template": "https://tnktok.com/t/{}",
-                "emoji": "🎵"
+                "emoji": "🎵",
+                "name": "TikTok"
             },
             "youtube_shorts": {
                 "patterns": [
                     r"https?://(?:www\.)?youtube\.com/shorts/([\w-]+)",
                 ],
                 "alternative_template": "https://youtube.com/watch?v={}",
-                "emoji": "🎥"
+                "emoji": "🎥",
+                "name": "YouTube Shorts"
             },
             "reddit": {
                 "patterns": [
                     r"https?://(?:www\.|old\.)?reddit\.com/r/([\w-]+)/comments/([\w-]+)",
                 ],
                 "alternative_template": "https://rxddit.com/r/{}/comments/{}",
-                "emoji": "🔴"
+                "emoji": "🔴",
+                "name": "Reddit"
             }
         }
-        self.links_file = "links.json"
-        self.embed_messages_file = "embed_messages.json"
-        self.load_data()
-        self.clean_links.start()
-
-    def load_data(self):
-        if os.path.exists(self.links_file):
-            with open(self.links_file, 'r') as f:
-                self.links = json.load(f)
-        else:
-            self.links = {}
-            self.save_links()
-
-        if os.path.exists(self.embed_messages_file):
-            with open(self.embed_messages_file, 'r') as f:
-                self.embed_messages = json.load(f)
-        else:
-            self.embed_messages = {}
-            self.save_embed_messages()
-
-    def save_links(self):
-        with open(self.links_file, 'w') as f:
-            json.dump(self.links, f, indent=4)
-
-    def save_embed_messages(self):
-        with open(self.embed_messages_file, 'w') as f:
-            json.dump(self.embed_messages, f, indent=4)
-
-    @tasks.loop(hours=24)
-    async def clean_links(self):
+        
+        # Chargement des données au démarrage
+        self.links_data = self.load_data()
+        self.embed_messages = self.load_embed_messages()
+        
+        # Démarrage de la tâche de nettoyage automatique
+        self.cleanup_task.start()
+    
+    def load_data(self) -> Dict:
+        """Charge les données des liens depuis le fichier JSON"""
         try:
-            now = datetime.utcnow()
-            channels_to_update = set()
-            for channel_id in list(self.links.keys()):
-                for platform in list(self.links[channel_id].keys()):
-                    for link_id in list(self.links[channel_id][platform].keys()):
-                        link_time = datetime.fromisoformat(self.links[channel_id][platform][link_id]["timestamp"])
-                        if now - link_time > timedelta(hours=24):
-                            del self.links[channel_id][platform][link_id]
-                    if not self.links[channel_id][platform]:
-                        del self.links[channel_id][platform]
-                if not self.links[channel_id]:
-                    del self.links[channel_id]
-                else:
-                    channels_to_update.add(channel_id)
-            self.save_links()
-
-            for channel_id in channels_to_update:
-                await self.update_embed(channel_id)
-            print(f"Links cleaned at {now}")
+            if os.path.exists(self.data_file):
+                with open(self.data_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
         except Exception as e:
-            print(f"Error cleaning links: {e}")
-
-    @clean_links.before_loop
-    async def before_clean_links(self):
-        await self.bot.wait_until_ready()
-
-    async def update_embed(self, channel_id):
-        channel = self.bot.get_channel(int(channel_id))
-        if not channel:
-            print(f"Canal {channel_id} non trouvé ou inaccessible, suppression des données.")
-            if channel_id in self.links:
-                del self.links[channel_id]
-                self.save_links()
-            if channel_id in self.embed_messages:
-                del self.embed_messages[channel_id]
-                self.save_embed_messages()
-            return
-
+            print(f"Erreur lors du chargement des données: {e}")
+        return {}
+    
+    def save_data(self) -> None:
+        """Sauvegarde les données des liens dans le fichier JSON"""
+        try:
+            with open(self.data_file, 'w', encoding='utf-8') as f:
+                json.dump(self.links_data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Erreur lors de la sauvegarde des données: {e}")
+    
+    def load_embed_messages(self) -> Dict:
+        """Charge les IDs des messages d'embed par canal"""
+        try:
+            if os.path.exists(self.embed_messages_file):
+                with open(self.embed_messages_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as e:
+            print(f"Erreur lors du chargement des embeds: {e}")
+        return {}
+    
+    def save_embed_messages(self) -> None:
+        """Sauvegarde les IDs des messages d'embed"""
+        try:
+            with open(self.embed_messages_file, 'w', encoding='utf-8') as f:
+                json.dump(self.embed_messages, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"Erreur lors de la sauvegarde des embeds: {e}")
+    
+    def detect_social_link(self, text: str) -> Optional[Tuple[str, str, List[str]]]:
+        """
+        Détecte les liens de réseaux sociaux dans le texte
+        Returns: (platform, original_url, extracted_groups) ou None
+        """
+        for platform, config in self.site_configs.items():
+            for pattern in config["patterns"]:
+                match = re.search(pattern, text)
+                if match:
+                    return platform, match.group(0), list(match.groups())
+        return None
+    
+    def generate_alternative_url(self, platform: str, groups: List[str]) -> str:
+        """Génère l'URL alternative basée sur la plateforme et les groupes extraits"""
+        config = self.site_configs[platform]
+        
+        # Gestion spéciale pour Reddit (2 groupes)
+        if platform == "reddit" and len(groups) >= 2:
+            return config["alternative_template"].format(groups[0], groups[1])
+        
+        # Gestion spéciale pour Twitter (2 groupes)
+        elif platform == "twitter" and len(groups) >= 2:
+            return config["alternative_template"].format(groups[0], groups[1])
+        
+        # Gestion standard pour les autres plateformes (1 groupe)
+        elif len(groups) >= 1:
+            return config["alternative_template"].format(groups[0])
+        
+        return config["alternative_template"].format(*groups)
+    
+    def get_link_identifier(self, platform: str, groups: List[str]) -> str:
+        """Génère un identifiant unique pour le lien basé sur la plateforme"""
+        if platform == "reddit" and len(groups) >= 2:
+            return f"{platform}_{groups[0]}_{groups[1]}"
+        elif platform == "twitter" and len(groups) >= 2:
+            return f"{platform}_{groups[0]}_{groups[1]}"
+        elif len(groups) >= 1:
+            return f"{platform}_{groups[0]}"
+        return f"{platform}_{'_'.join(groups)}"
+    
+    def is_duplicate_link(self, channel_id: str, link_identifier: str) -> bool:
+        """Vérifie si un lien est déjà présent dans ce canal"""
+        if channel_id not in self.links_data:
+            return False
+        
+        for link_data in self.links_data[channel_id]:
+            if link_data.get("identifier") == link_identifier:
+                return True
+        return False
+    
+    def add_link_to_data(self, channel_id: str, link_data: Dict) -> None:
+        """Ajoute un lien aux données du canal"""
+        if channel_id not in self.links_data:
+            self.links_data[channel_id] = []
+        
+        self.links_data[channel_id].append(link_data)
+        self.save_data()
+    
+    def create_embed(self, channel_id: str) -> discord.Embed:
+        """Crée l'embed avec tous les liens du canal"""
         embed = discord.Embed(
-            title="Liens Partagés",
-            description="Liste des liens soumis dans ce canal.",
+            title="🔗 Liens de Réseaux Sociaux",
+            description="Liens détectés dans ce canal (dernières 24h)",
             color=discord.Color.blue(),
             timestamp=datetime.utcnow()
         )
-
-        if channel_id in self.links:
-            for platform, links in self.links[channel_id].items():
-                platform_name = platform.replace("_", " ").title()
-                emoji = self.site_configs[platform]["emoji"]
-                entries = [f"{emoji} [{platform_name}]({data['alternative_url']}) - Ajouté par : <@{data['author_id']}>" 
-                          for link_id, data in links.items()]
-                if entries:
-                    embed.add_field(name=platform_name, value="\n".join(entries), inline=False)
-
-        if not embed.fields:
-            embed.description = "Aucun lien soumis pour le moment."
-
+        
+        if channel_id not in self.links_data or not self.links_data[channel_id]:
+            embed.add_field(
+                name="Aucun lien",
+                value="Aucun lien détecté pour le moment",
+                inline=False
+            )
+            return embed
+        
+        # Grouper les liens par plateforme
+        platforms = {}
+        for link_data in self.links_data[channel_id]:
+            platform = link_data["platform"]
+            if platform not in platforms:
+                platforms[platform] = []
+            platforms[platform].append(link_data)
+        
+        # Ajouter les liens groupés par plateforme
+        for platform, links in platforms.items():
+            config = self.site_configs[platform]
+            value = ""
+            for link_data in links[-5:]:  # Limiter à 5 liens par plateforme
+                alt_url = link_data["alternative_url"]
+                author = link_data["author"]
+                value += f"• [Lien]({alt_url}) - par <@{author}>\n"
+            
+            if len(links) > 5:
+                value += f"... et {len(links) - 5} autres liens\n"
+            
+            embed.add_field(
+                name=f"{config['emoji']} {config['name']} ({len(links)})",
+                value=value or "Aucun lien",
+                inline=False
+            )
+        
+        embed.set_footer(text=f"Total: {sum(len(links) for links in platforms.values())} liens")
+        return embed
+    
+    async def update_or_create_embed(self, channel) -> None:
+        """Met à jour ou crée l'embed dans le canal"""
         try:
-            if channel_id in self.embed_messages and self.embed_messages[channel_id]:
-                message = await channel.fetch_message(int(self.embed_messages[channel_id]))
-                await message.edit(embed=embed)
-            else:
-                message = await channel.send(embed=embed)
-                self.embed_messages[channel_id] = str(message.id)
-                self.save_embed_messages()
-        except discord.NotFound:
+            channel_id = str(channel.id)
+            embed = self.create_embed(channel_id)
+            
+            # Vérifier si un message d'embed existe déjà
+            if channel_id in self.embed_messages:
+                try:
+                    message = await channel.fetch_message(self.embed_messages[channel_id])
+                    await message.edit(embed=embed)
+                    return
+                except discord.NotFound:
+                    # Le message n'existe plus, en créer un nouveau
+                    del self.embed_messages[channel_id]
+            
+            # Créer un nouveau message d'embed
             message = await channel.send(embed=embed)
-            self.embed_messages[channel_id] = str(message.id)
+            self.embed_messages[channel_id] = message.id
             self.save_embed_messages()
-        except discord.Forbidden:
-            print(f"Permissions insuffisantes dans le canal {channel_id}")
-
+            
+        except Exception as e:
+            print(f"Erreur lors de la mise à jour de l'embed: {e}")
+    
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot or not message.channel.permissions_for(message.guild.me).send_messages:
+        """Listener principal pour détecter les liens dans les messages"""
+        # Ignorer les messages du bot
+        if message.author.bot:
             return
-
+        
+        # Vérifier les permissions du bot dans le canal
+        if not message.channel.permissions_for(message.guild.me).send_messages:
+            return
+        
+        # Détecter les liens de réseaux sociaux
+        detection_result = self.detect_social_link(message.content)
+        if not detection_result:
+            return
+        
+        platform, original_url, groups = detection_result
         channel_id = str(message.channel.id)
-        content = message.content
-        for platform, config in self.site_configs.items():
-            for pattern in config["patterns"]:
-                matches = re.search(pattern, content)
-                if matches:
-                    groups = matches.groups()
-                    if platform in ["twitter", "reddit"]:
-                        link_id = f"{groups[0]}.{groups[1]}"
-                        alternative_url = config["alternative_template"].format(*groups)
-                    else:
-                        link_id = groups[0]
-                        alternative_url = config["alternative_template"].format(groups[0])
-
-                    if (channel_id in self.links and 
-                        platform in self.links[channel_id] and 
-                        link_id in self.links[channel_id][platform]):
-                        await message.reply(f"Ce lien {platform.replace('_', ' ').title()} a déjà été soumis dans ce canal !")
-                        return
-
-                    if channel_id not in self.links:
-                        self.links[channel_id] = {}
-                    if platform not in self.links[channel_id]:
-                        self.links[channel_id][platform] = {}
-                    self.links[channel_id][platform][link_id] = {
-                        "original_url": content,
-                        "alternative_url": alternative_url,
-                        "author_id": str(message.author.id),
-                        "author_name": message.author.display_name,
-                        "timestamp": datetime.utcnow().isoformat()
-                    }
-
-                    self.save_links()
-                    await self.update_embed(channel_id)
-                    await message.add_reaction("✅")
-                    return
-
-    async def cog_load(self):
-        for channel_id in list(self.links.keys()):
-            await self.update_embed(channel_id)
+        
+        # Générer l'identifiant unique du lien
+        link_identifier = self.get_link_identifier(platform, groups)
+        
+        # Vérifier si c'est un doublon
+        if self.is_duplicate_link(channel_id, link_identifier):
+            await message.reply(
+                f"❌ Ce lien de **{self.site_configs[platform]['name']}** a déjà été partagé dans ce canal !",
+                delete_after=10
+            )
+            return
+        
+        # Générer l'URL alternative
+        alternative_url = self.generate_alternative_url(platform, groups)
+        
+        # Ajouter le lien aux données
+        link_data = {
+            "identifier": link_identifier,
+            "platform": platform,
+            "original_url": original_url,
+            "alternative_url": alternative_url,
+            "author": message.author.id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "channel_id": channel_id
+        }
+        
+        self.add_link_to_data(channel_id, link_data)
+        
+        # Répondre à l'utilisateur avec l'URL alternative
+        config = self.site_configs[platform]
+        await message.reply(
+            f"{config['emoji']} **{config['name']}** détecté !\n"
+            f"Lien alternatif: {alternative_url}",
+            delete_after=20
+        )
+        
+        # Mettre à jour l'embed
+        await self.update_or_create_embed(message.channel)
+    
+    @tasks.loop(hours=24)
+    async def cleanup_task(self):
+        """Nettoie automatiquement les liens plus anciens que 24 heures"""
+        print("🧹 Début du nettoyage automatique des liens...")
+        
+        current_time = datetime.utcnow()
+        channels_to_update = set()
+        
+        # Nettoyer les données
+        for channel_id, links in list(self.links_data.items()):
+            original_count = len(links)
+            
+            # Filtrer les liens de moins de 24 heures
+            self.links_data[channel_id] = [
+                link for link in links
+                if current_time - datetime.fromisoformat(link["timestamp"]) < timedelta(hours=24)
+            ]
+            
+            # Si des liens ont été supprimés, marquer le canal pour mise à jour
+            if len(self.links_data[channel_id]) != original_count:
+                channels_to_update.add(channel_id)
+            
+            # Supprimer les canaux vides
+            if not self.links_data[channel_id]:
+                del self.links_data[channel_id]
+        
+        # Sauvegarder les données nettoyées
+        self.save_data()
+        
+        # Mettre à jour les embeds des canaux concernés
+        for channel_id in channels_to_update:
+            try:
+                channel = self.bot.get_channel(int(channel_id))
+                if channel:
+                    await self.update_or_create_embed(channel)
+            except Exception as e:
+                print(f"Erreur lors de la mise à jour de l'embed du canal {channel_id}: {e}")
+        
+        print(f"✅ Nettoyage terminé. {len(channels_to_update)} canaux mis à jour.")
+    
+    @cleanup_task.before_loop
+    async def before_cleanup(self):
+        """Attend que le bot soit prêt avant de démarrer le nettoyage"""
+        await self.bot.wait_until_ready()
+    
+    
+    @commands.command(name="force_cleanup")
+    @commands.has_permissions(manage_messages=True)
+    async def force_cleanup_command(self, ctx):
+        """Commande pour forcer le nettoyage des liens (admin uniquement)"""
+        await ctx.send("🧹 Démarrage du nettoyage forcé...")
+        await self.cleanup_task()
+        await ctx.send("✅ Nettoyage forcé terminé !")
+    
+    @commands.command(name="links_stats")
+    async def links_stats(self, ctx):
+        """Affiche les statistiques des liens détectés"""
+        channel_id = str(ctx.channel.id)
+        
+        if channel_id not in self.links_data or not self.links_data[channel_id]:
+            await ctx.send("❌ Aucun lien détecté dans ce canal.")
+            return
+        
+        # Compter les liens par plateforme
+        platform_counts = {}
+        for link_data in self.links_data[channel_id]:
+            platform = link_data["platform"]
+            platform_counts[platform] = platform_counts.get(platform, 0) + 1
+        
+        # Créer l'embed des statistiques
+        embed = discord.Embed(
+            title="📊 Statistiques des Liens",
+            description=f"Statistiques pour {ctx.channel.mention}",
+            color=discord.Color.green()
+        )
+        
+        for platform, count in platform_counts.items():
+            config = self.site_configs[platform]
+            embed.add_field(
+                name=f"{config['emoji']} {config['name']}",
+                value=f"{count} lien{'s' if count > 1 else ''}",
+                inline=True
+            )
+        
+        total_links = sum(platform_counts.values())
+        embed.set_footer(text=f"Total: {total_links} liens détectés")
+        
+        await ctx.send(embed=embed)
 
 async def setup(bot):
-    await bot.add_cog(LinkTracker(bot))
+    """Fonction de setup pour charger le cog"""
+    await bot.add_cog(SocialMediaLinksManager(bot))
