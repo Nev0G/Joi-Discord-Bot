@@ -1,227 +1,282 @@
 import discord
 from discord.ext import commands, tasks
 import json
+import re
 import asyncio
-import aiohttp
 from datetime import datetime, timedelta
 import os
-import logging
-import subprocess
-import sys
+from typing import Dict, List, Optional, Tuple
 
-class BotManagement(commands.Cog):
+class SocialMediaLinksManager(commands.Cog):
+    """
+    Cog pour détecter et gérer les liens de réseaux sociaux
+    Répond uniquement avec l'URL alternative et l'utilisateur
+    """
+    
     def __init__(self, bot):
         self.bot = bot
-        self.temp_changes_file = 'temp_bot_changes.json'
-        self.user_data_file = 'user_data.json'
-        self.original_avatar = None
-        self.original_name = None
-        self.original_status = None
-        self.temp_changes = self.load_temp_changes()
+        self.data_file = "social_links_data.json"
+        
+        # Configuration des plateformes supportées
+        self.site_configs = {
+            "twitter": {
+                "patterns": [
+                    r"https?://(?:www\.)?(?:twitter\.com|x\.com)/(\w+)/status/(\d+)",
+                    r"https?://(?:mobile\.)?(?:twitter\.com|x\.com)/(\w+)/status/(\d+)",
+                ],
+                "alternative_template": "https://fxtwitter.com/{}/status/{}",
+                "emoji": "🐦",
+                "name": "Twitter/X"
+            },
+            "instagram_post": {
+                "patterns": [
+                    r"https?://(?:www\.)?instagram\.com/p/([\w-]+)/?",
+                ],
+                "alternative_template": "https://ddinstagram.com/p/{}",
+                "emoji": "📸",
+                "name": "Instagram Post"
+            },
+            "instagram_reel": {
+                "patterns": [
+                    r"https?://(?:www\.)?instagram\.com/reel/([\w-]+)/?",
+                ],
+                "alternative_template": "https://ddinstagram.com/reel/{}",
+                "emoji": "🎬",
+                "name": "Instagram Reel"
+            },
+            "tiktok": {
+                "patterns": [
+                    r"https?://(?:www|vm|m)\.tiktok\.com/t/([^/]+)/?",
+                    r"https?://(?:www|vm|m)\.tiktok\.com/@[\w.-]+/video/(\d+)",
+                ],
+                "alternative_template": "https://tnktok.com/t/{}",
+                "emoji": "🎵",
+                "name": "TikTok"
+            },
+            "youtube_shorts": {
+                "patterns": [
+                    r"https?://(?:www\.)?youtube\.com/shorts/([\w-]+)",
+                ],
+                "alternative_template": "https://youtube.com/watch?v={}",
+                "emoji": "🎥",
+                "name": "YouTube Shorts"
+            },
+            "reddit": {
+                "patterns": [
+                    r"https?://(?:www\.|old\.)?reddit\.com/r/([\w-]+)/comments/([\w-]+)",
+                ],
+                "alternative_template": "https://rxddit.com/r/{}/comments/{}",
+                "emoji": "🔴",
+                "name": "Reddit"
+            }
+        }
+        
+        # Chargement des données au démarrage
+        self.links_data = self.load_data()
+        
+        # Démarrage de la tâche de nettoyage automatique
         self.cleanup_task.start()
-      
-    @commands.command(name="updatebot")
-    @commands.is_owner()
-    async def update_bot(self, ctx):
-        await ctx.send("🔄 Mise à jour du bot depuis le dépôt Git en cours...")
-
+    
+    def load_data(self) -> Dict:
+        """Charge les données des liens depuis le fichier JSON"""
         try:
-            # Git pull
-            result = subprocess.run(["git", "pull"], capture_output=True, text=True)
-            if result.returncode == 0:
-                await ctx.send(f"✅ Mise à jour terminée :\n```{result.stdout.strip()}```")
-            else:
-                await ctx.send(f"❌ Erreur lors du git pull :\n```{result.stderr.strip()}```")
-                return
-            
-            await ctx.send("♻️ Redémarrage du bot en cours...")
-            await asyncio.sleep(1)  # Petite pause pour envoyer le message
-            
-            # Fermer proprement la connexion Discord
-            await self.bot.close()
-            
-            # Redémarrer le processus
-            python = sys.executable
-            os.execl(python, python, *sys.argv)
-
-        except Exception as e:
-            await ctx.send(f"❌ Une erreur est survenue : `{e}`")
-
-  
-    def load_temp_changes(self):
-        try:
-            if os.path.exists(self.temp_changes_file):
-                with open(self.temp_changes_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    if "status" not in data:
-                        data["status"] = None
-                    return data
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            logging.warning(f"Erreur lors du chargement de {self.temp_changes_file}: {e}")
-        return {"avatar": None, "name": None, "status": None}
-
-    def save_temp_changes(self):
-        try:
-            with open(self.temp_changes_file, 'w', encoding='utf-8') as f:
-                json.dump(self.temp_changes, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            logging.error(f"Erreur lors de la sauvegarde de {self.temp_changes_file}: {e}")
-
-    def load_user_data(self):
-        try:
-            if os.path.exists(self.user_data_file):
-                with open(self.user_data_file, 'r', encoding='utf-8') as f:
+            if os.path.exists(self.data_file):
+                with open(self.data_file, 'r', encoding='utf-8') as f:
                     return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            logging.warning(f"Erreur lors du chargement de {self.user_data_file}: {e}")
+        except Exception as e:
+            print(f"Erreur lors du chargement des données: {e}")
         return {}
-
-    def save_user_data(self, data):
+    
+    def save_data(self) -> None:
+        """Sauvegarde les données des liens dans le fichier JSON"""
         try:
-            with open(self.user_data_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            with open(self.data_file, 'w', encoding='utf-8') as f:
+                json.dump(self.links_data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            logging.error(f"Erreur lors de la sauvegarde de {self.user_data_file}: {e}")
-
-    def deduct_user_points(self, user_id, points):
-        user_data = self.load_user_data()
-        user_id = str(user_id)
-        if user_id not in user_data or user_data[user_id].get('points', 0) < points:
+            print(f"Erreur lors de la sauvegarde des données: {e}")
+    
+    def detect_social_link(self, text: str) -> Optional[Tuple[str, str, List[str]]]:
+        """
+        Détecte les liens de réseaux sociaux dans le texte
+        Returns: (platform, original_url, extracted_groups) ou None
+        """
+        for platform, config in self.site_configs.items():
+            for pattern in config["patterns"]:
+                match = re.search(pattern, text)
+                if match:
+                    return platform, match.group(0), list(match.groups())
+        return None
+    
+    def generate_alternative_url(self, platform: str, groups: List[str]) -> str:
+        """Génère l'URL alternative basée sur la plateforme et les groupes extraits"""
+        config = self.site_configs[platform]
+        
+        # Gestion spéciale pour Reddit (2 groupes)
+        if platform == "reddit" and len(groups) >= 2:
+            return config["alternative_template"].format(groups[0], groups[1])
+        
+        # Gestion spéciale pour Twitter (2 groupes)
+        elif platform == "twitter" and len(groups) >= 2:
+            return config["alternative_template"].format(groups[0], groups[1])
+        
+        # Gestion standard pour les autres plateformes (1 groupe)
+        elif len(groups) >= 1:
+            return config["alternative_template"].format(groups[0])
+        
+        return config["alternative_template"].format(*groups)
+    
+    def get_link_identifier(self, platform: str, groups: List[str]) -> str:
+        """Génère un identifiant unique pour le lien basé sur la plateforme"""
+        if platform == "reddit" and len(groups) >= 2:
+            return f"{platform}_{groups[0]}_{groups[1]}"
+        elif platform == "twitter" and len(groups) >= 2:
+            return f"{platform}_{groups[0]}_{groups[1]}"
+        elif len(groups) >= 1:
+            return f"{platform}_{groups[0]}"
+        return f"{platform}_{'_'.join(groups)}"
+    
+    def is_duplicate_link(self, channel_id: str, link_identifier: str) -> bool:
+        """Vérifie si un lien est déjà présent dans ce canal"""
+        if channel_id not in self.links_data:
             return False
-        user_data[user_id]['points'] -= points
-        self.save_user_data(user_data)
-        return True
-
-    def refund_user_points(self, user_id, points):
-        user_data = self.load_user_data()
-        user_id = str(user_id)
-        if user_id not in user_data:
-            user_data[user_id] = {'points': 0}
-        user_data[user_id]['points'] += points
-        self.save_user_data(user_data)
-
-    async def save_original_values(self):
-        try:
-            if self.original_avatar is None and self.bot.user.avatar:
-                self.original_avatar = await self.bot.user.avatar.read()
-            if self.original_name is None:
-                self.original_name = self.bot.user.display_name or self.bot.user.name
-            if self.original_status is None:
-                self.original_status = {'activity': self.bot.activity, 'status': self.bot.status}
-        except Exception as e:
-            logging.error(f"Erreur lors de la sauvegarde des valeurs originales: {e}")
-
-    @tasks.loop(minutes=30)
+        
+        for link_data in self.links_data[channel_id]:
+            if link_data.get("identifier") == link_identifier:
+                return True
+        return False
+    
+    def add_link_to_data(self, channel_id: str, link_data: Dict) -> None:
+        """Ajoute un lien aux données du canal"""
+        if channel_id not in self.links_data:
+            self.links_data[channel_id] = []
+        
+        self.links_data[channel_id].append(link_data)
+        self.save_data()
+    
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        """Listener principal pour détecter les liens dans les messages"""
+        # Ignorer les messages du bot
+        if message.author.bot:
+            return
+        
+        # Vérifier les permissions du bot dans le canal
+        if not message.channel.permissions_for(message.guild.me).send_messages:
+            return
+        
+        # Détecter les liens de réseaux sociaux
+        detection_result = self.detect_social_link(message.content)
+        if not detection_result:
+            return
+        
+        platform, original_url, groups = detection_result
+        channel_id = str(message.channel.id)
+        
+        # Générer l'identifiant unique du lien
+        link_identifier = self.get_link_identifier(platform, groups)
+        
+        # Vérifier si c'est un doublon
+        if self.is_duplicate_link(channel_id, link_identifier):
+            await message.reply(
+                f"BOUCLED ❌ Ce lien de **{self.site_configs[platform]['name']}** a déjà été partagé salope !",
+                delete_after=10
+            )
+            return
+        
+        # Générer l'URL alternative
+        alternative_url = self.generate_alternative_url(platform, groups)
+        
+        # Ajouter le lien aux données
+        link_data = {
+            "identifier": link_identifier,
+            "platform": platform,
+            "original_url": original_url,
+            "alternative_url": alternative_url,
+            "author": message.author.id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "channel_id": channel_id
+        }
+        
+        self.add_link_to_data(channel_id, link_data)
+        
+        # Créer le message avec emoji, plateforme, utilisateur et lien
+        config = self.site_configs[platform]
+        embed_fix_message = f"{config['emoji']} {config['name']} - @{message.author.display_name} {alternative_url}"
+        
+        # Envoyer uniquement le message texte
+        await message.channel.send(embed_fix_message)
+    
+    @tasks.loop(hours=24)
     async def cleanup_task(self):
-        try:
-            current_time = datetime.now()
-            changes_made = False
-            avatar_data = self.temp_changes.get("avatar")
-            if avatar_data and datetime.fromisoformat(avatar_data["expires_at"]) <= current_time:
-                if self.original_avatar:
-                    try:
-                        await self.bot.user.edit(avatar=self.original_avatar)
-                        print("✅ Avatar restauré")
-                    except discord.HTTPException as e:
-                        print(f"❌ Erreur avatar: {e}")
-                self.temp_changes["avatar"] = None
-                changes_made = True
-
-            name_data = self.temp_changes.get("name")
-            if name_data and datetime.fromisoformat(name_data["expires_at"]) <= current_time:
-                if self.original_name:
-                    try:
-                        await self.bot.user.edit(username=self.original_name)
-                        print("✅ Nom restauré")
-                    except discord.HTTPException as e:
-                        print(f"❌ Erreur nom: {e}")
-                self.temp_changes["name"] = None
-                changes_made = True
-
-            status_data = self.temp_changes.get("status")
-            if status_data and datetime.fromisoformat(status_data["expires_at"]) <= current_time:
-                if self.original_status:
-                    try:
-                        await self.bot.change_presence(activity=self.original_status['activity'], status=self.original_status['status'])
-                        print("✅ Statut restauré")
-                    except Exception as e:
-                        print(f"❌ Erreur statut: {e}")
-                self.temp_changes["status"] = None
-                changes_made = True
-
-            if changes_made:
-                self.save_temp_changes()
-        except Exception as e:
-            logging.error(f"❌ Erreur dans cleanup_task: {e}")
-
+        """Nettoie automatiquement les liens plus anciens que 24 heures"""
+        print("🧹 Début du nettoyage automatique des liens...")
+        
+        current_time = datetime.utcnow()
+        
+        # Nettoyer les données
+        for channel_id, links in list(self.links_data.items()):
+            # Filtrer les liens de moins de 24 heures
+            self.links_data[channel_id] = [
+                link for link in links
+                if current_time - datetime.fromisoformat(link["timestamp"]) < timedelta(hours=24)
+            ]
+            
+            # Supprimer les canaux vides
+            if not self.links_data[channel_id]:
+                del self.links_data[channel_id]
+        
+        # Sauvegarder les données nettoyées
+        self.save_data()
+        print("✅ Nettoyage terminé.")
+    
     @cleanup_task.before_loop
-    async def before_cleanup_task(self):
+    async def before_cleanup(self):
+        """Attend que le bot soit prêt avant de démarrer le nettoyage"""
         await self.bot.wait_until_ready()
-
-    @commands.command(name="botstatus", aliases=["status_info"])
-    async def show_bot_status_info(self, ctx):
-        embed = discord.Embed(title="🤖 État du Bot", description="Modifications actives", color=0x3498db, timestamp=datetime.now())
-        activity_text = "Aucune"
-        if self.bot.activity:
-            activity_text = f"{self.bot.activity.type.name.title()}: {self.bot.activity.name}"
-        embed.add_field(name="📊 Informations Actuelles", value=f"**Nom :** {self.bot.user.display_name or self.bot.user.name}\n**Statut :** {self.bot.status.name.title()}\n**Activité :** {activity_text}", inline=False)
-
-        active_changes = []
-
-        avatar_data = self.temp_changes.get("avatar")
-        if avatar_data:
-            try:
-                expires = datetime.fromisoformat(avatar_data["expires_at"])
-                user_id = avatar_data["user_id"]
-                user = self.bot.get_user(user_id)
-                user_mention = user.mention if user else f"<@{user_id}>"
-                active_changes.append(f"🖼️ **Avatar** - Par {user_mention}\nExpire <t:{int(expires.timestamp())}:R>")
-            except (ValueError, KeyError):
-                self.temp_changes["avatar"] = None
-
-        name_data = self.temp_changes.get("name")
-        if name_data:
-            try:
-                expires = datetime.fromisoformat(name_data["expires_at"])
-                user_id = name_data["user_id"]
-                user = self.bot.get_user(user_id)
-                user_mention = user.mention if user else f"<@{user_id}>"
-                active_changes.append(f"📝 **Nom** - Par {user_mention}\nExpire <t:{int(expires.timestamp())}:R>")
-            except (ValueError, KeyError):
-                self.temp_changes["name"] = None
-
-        status_data = self.temp_changes.get("status")
-        if status_data:
-            try:
-                expires = datetime.fromisoformat(status_data["expires_at"])
-                user_id = status_data["user_id"]
-                user = self.bot.get_user(user_id)
-                user_mention = user.mention if user else f"<@{user_id}>"
-                status_type = status_data["activity_type"]
-                status_text = status_data["text"]
-                active_changes.append(f"🎮 **Statut** - Par {user_mention}\n{status_type.title()}: {status_text}\nExpire <t:{int(expires.timestamp())}:R>")
-            except (ValueError, KeyError):
-                self.temp_changes["status"] = None
-
-        if active_changes:
-            embed.add_field(name="🔄 Modifications Actives", value="\n\n".join(active_changes), inline=False)
-        else:
-            embed.add_field(name="✅ État Normal", value="Aucune modification temporaire active", inline=False)
-
-        if self.original_name or self.original_avatar or self.original_status:
-            original_info = []
-            if self.original_name:
-                original_info.append(f"**Nom original :** {self.original_name}")
-            if self.original_avatar:
-                original_info.append("**Avatar original :** Sauvegardé")
-            if self.original_status:
-                original_info.append("**Statut original :** Sauvegardé")
-            embed.add_field(name="💾 Valeurs de Sauvegarde", value="\n".join(original_info), inline=False)
-
-        if self.bot.user.avatar:
-            embed.set_thumbnail(url=self.bot.user.avatar.url)
-
+    
+    @commands.command(name="force_cleanup")
+    @commands.has_permissions(manage_messages=True)
+    async def force_cleanup_command(self, ctx):
+        """Commande pour forcer le nettoyage des liens (admin uniquement)"""
+        await ctx.send("🧹 Démarrage du nettoyage forcé...")
+        await self.cleanup_task()
+        await ctx.send("✅ Nettoyage forcé terminé !")
+    
+    @commands.command(name="links_stats")
+    async def links_stats(self, ctx):
+        """Affiche les statistiques des liens détectés"""
+        channel_id = str(ctx.channel.id)
+        
+        if channel_id not in self.links_data or not self.links_data[channel_id]:
+            await ctx.send("❌ Aucun lien détecté dans ce canal.")
+            return
+        
+        # Compter les liens par plateforme
+        platform_counts = {}
+        for link_data in self.links_data[channel_id]:
+            platform = link_data["platform"]
+            platform_counts[platform] = platform_counts.get(platform, 0) + 1
+        
+        # Créer l'embed des statistiques
+        embed = discord.Embed(
+            title="📊 Statistiques des Liens",
+            description=f"Statistiques pour {ctx.channel.mention}",
+            color=discord.Color.green()
+        )
+        
+        for platform, count in platform_counts.items():
+            config = self.site_configs[platform]
+            embed.add_field(
+                name=f"{config['emoji']} {config['name']}",
+                value=f"{count} lien{'s' if count > 1 else ''}",
+                inline=True
+            )
+        
+        total_links = sum(platform_counts.values())
+        embed.set_footer(text=f"Total: {total_links} liens détectés")
+        
         await ctx.send(embed=embed)
 
 async def setup(bot):
-    await bot.add_cog(BotManagement(bot))
+    """Fonction de setup pour charger le cog"""
+    await bot.add_cog(SocialMediaLinksManager(bot))
