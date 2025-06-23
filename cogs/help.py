@@ -5,7 +5,7 @@ class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command(name='help', aliases=['aide', 'h'])
+    @commands.command(name='alaide', aliases=['h'])
     async def help_command(self, ctx, command_name=None):
         """Affiche l'aide générale ou l'aide d'une commande spécifique"""
             

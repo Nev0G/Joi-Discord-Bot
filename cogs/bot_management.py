@@ -6,6 +6,8 @@ import aiohttp
 from datetime import datetime, timedelta
 import os
 import logging
+import subprocess
+import sys
 
 class BotManagement(commands.Cog):
     def __init__(self, bot):
@@ -17,7 +19,29 @@ class BotManagement(commands.Cog):
         self.original_status = None
         self.temp_changes = self.load_temp_changes()
         self.cleanup_task.start()
-        
+      
+    @commands.command(name="updatebot")
+    @commands.is_owner()
+    async def update_bot(self, ctx):
+        await ctx.send("🔄 Mise à jour du bot depuis le dépôt Git en cours...")
+
+        try:
+            result = subprocess.run(["git", "pull"], capture_output=True, text=True)
+            if result.returncode == 0:
+                await ctx.send(f"✅ Mise à jour terminée :\n```{result.stdout.strip()}```")
+            else:
+                await ctx.send(f"❌ Erreur lors du git pull :\n```{result.stderr.strip()}```")
+                return
+            
+            await ctx.send("♻️ Redémarrage du bot en cours...")
+
+            await self.bot.close()
+            os.execl(sys.executable, sys.executable, *sys.argv)
+
+        except Exception as e:
+            await ctx.send(f"❌ Une erreur est survenue : `{e}`")
+
+  
     def load_temp_changes(self):
         try:
             if os.path.exists(self.temp_changes_file):
