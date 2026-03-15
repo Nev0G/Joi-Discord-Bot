@@ -413,19 +413,19 @@ class Casino(commands.Cog, name="Casino"):
             return
 
         try:
-            # point de crash : distribution exponentielle biaisée vers le bas
             crash_point = round(random.uniform(1.01, 20.0) * random.choice([1, 1, 1, 0.3]), 2)
             crash_point = max(1.01, crash_point)
 
-            multiplier  = 1.00
-            cashed_out  = False
+            multiplier = 1.00
+            # Event partagé entre la tâche d'animation et le wait_for
+            cashout_event = asyncio.Event()
 
             def make_embed(mult: float, potential: float) -> discord.Embed:
                 if mult < 1.5:    color = 0x2ecc71
                 elif mult < 3:    color = 0xf39c12
                 elif mult < 7:    color = 0xe67e22
                 else:             color = 0xe74c3c
-                bars = min(20, int(mult * 2))
+                bars  = min(20, int(mult * 2))
                 graph = "🟩" * bars + "⬜" * (20 - bars)
                 embed = discord.Embed(title="🚀 Crash Game", color=color)
                 embed.add_field(name="📈 Multiplicateur", value=f"**{mult:.2f}x**", inline=True)
@@ -442,26 +442,62 @@ class Casino(commands.Cog, name="Casino"):
                         and r.message.id == msg.id
                         and str(r.emoji) == "💰")
 
-            while multiplier < crash_point:
-                # incrément progressif
-                if multiplier < 2:    inc = 0.05
-                elif multiplier < 5:  inc = 0.10
-                elif multiplier < 10: inc = 0.20
-                else:                 inc = 0.50
-
-                multiplier = round(multiplier + inc, 2)
-                potential  = int(bet * multiplier)
-
-                await msg.edit(embed=make_embed(multiplier, potential))
-
+            # ── tâche 1 : écoute la réaction en permanence ───────────────
+            async def wait_cashout():
                 try:
-                    await self.bot.wait_for("reaction_add", timeout=0.4, check=cashout_check)
-                    cashed_out = True
-                    break
+                    await self.bot.wait_for(
+                        "reaction_add",
+                        timeout=120.0,   # timeout max de la partie entière
+                        check=cashout_check
+                    )
+                    cashout_event.set()
                 except asyncio.TimeoutError:
                     pass
 
-            await msg.clear_reactions()
+            # ── tâche 2 : animation du multiplicateur ─────────────────────
+            async def run_animation():
+                nonlocal multiplier
+                while multiplier < crash_point:
+                    if cashout_event.is_set():
+                        break
+
+                    if multiplier < 2:    inc = 0.05
+                    elif multiplier < 5:  inc = 0.10
+                    elif multiplier < 10: inc = 0.20
+                    else:                 inc = 0.50
+
+                    multiplier = round(multiplier + inc, 2)
+                    potential  = int(bet * multiplier)
+
+                    try:
+                        await msg.edit(embed=make_embed(multiplier, potential))
+                    except discord.HTTPException:
+                        pass
+
+                    # délai entre chaque tick — assez long pour que Discord
+                    # traite la réaction avant le prochain edit
+                    await asyncio.sleep(0.8)
+
+            # Lance les deux tâches en parallèle, s'arrête dès que l'une finit
+            cashout_task   = asyncio.create_task(wait_cashout())
+            animation_task = asyncio.create_task(run_animation())
+
+            # On attend que l'animation se termine (crash ou cashout)
+            await animation_task
+
+            # Annule le wait_for si la partie est déjà terminée
+            cashout_task.cancel()
+            try:
+                await cashout_task
+            except asyncio.CancelledError:
+                pass
+
+            try:
+                await msg.clear_reactions()
+            except discord.HTTPException:
+                pass
+
+            cashed_out = cashout_event.is_set()
 
             if cashed_out:
                 gross   = int(bet * multiplier)
