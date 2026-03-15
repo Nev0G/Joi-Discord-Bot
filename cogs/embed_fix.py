@@ -10,7 +10,6 @@ class EmbedFix(commands.Cog):
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger('EmbedFix')
 
-        # Définition centralisée des plateformes
         self.platforms = {
             "twitter": {
                 "patterns": [
@@ -37,19 +36,23 @@ class EmbedFix(commands.Cog):
                 "emoji": "🎬",
                 "name": "Instagram Reel"
             },
+            # URLs courtes TikTok : vm.tiktok.com/XXXXX ou tiktok.com/t/XXXXX
             "tiktok_short": {
                 "patterns": [
-                    r"https?://(?:www|vm|m)\.tiktok\.com/(?:t/)?([\w]+)/?$",
+                    r"https?://(?:vm|vt)\.tiktok\.com/([\w]+)/?",
+                    r"https?://(?:www\.)?tiktok\.com/t/([\w]+)/?",
                 ],
-                "alternative_template": "https://vxtiktok.com/t/{}",
+                "alternative_template": "https://tnktok.com/t/{}",
                 "emoji": "🎵",
                 "name": "TikTok"
             },
+            # URLs longues TikTok : tiktok.com/@user/video/VIDEOID
             "tiktok_video": {
                 "patterns": [
-                    r"https?://(?:www|vm|m)\.tiktok\.com/@[\w.\-]+/video/(\d+)",
+                    r"https?://(?:www\.)?tiktok\.com/@[\w.\-]+/video/(\d+)",
+                    r"https?://m\.tiktok\.com/@[\w.\-]+/video/(\d+)",
                 ],
-                "alternative_template": "https://vxtiktok.com/video/{}",
+                "alternative_template": "https://tnktok.com/@_/video/{}",
                 "emoji": "🎵",
                 "name": "TikTok"
             },
@@ -81,7 +84,6 @@ class EmbedFix(commands.Cog):
         liens_uniques = set()
         liens_trouves = []
 
-        # Parcours des plateformes et détection des liens
         for platform, config in self.platforms.items():
             for pattern in config["patterns"]:
                 matches = re.findall(pattern, message.content)
@@ -89,7 +91,6 @@ class EmbedFix(commands.Cog):
                     if not isinstance(groups, tuple):
                         groups = (groups,)
 
-                    # On construit un identifiant unique par lien
                     lien_original = (platform, groups)
 
                     if lien_original not in liens_uniques:
