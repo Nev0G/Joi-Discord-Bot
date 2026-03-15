@@ -36,17 +36,6 @@ class EmbedFix(commands.Cog):
                 "emoji": "🎬",
                 "name": "Instagram Reel"
             },
-            # URLs courtes TikTok : vm.tiktok.com/XXXXX ou tiktok.com/t/XXXXX
-            "tiktok_short": {
-                "patterns": [
-                    r"https?://(?:vm|vt)\.tiktok\.com/([\w]+)/?",
-                    r"https?://(?:www\.)?tiktok\.com/t/([\w]+)/?",
-                ],
-                "alternative_template": "https://tnktok.com/t/{}",
-                "emoji": "🎵",
-                "name": "TikTok"
-            },
-            # URLs longues TikTok : tiktok.com/@user/video/VIDEOID
             "tiktok_video": {
                 "patterns": [
                     r"https?://(?:www\.)?tiktok\.com/@[\w.\-]+/video/(\d+)",
