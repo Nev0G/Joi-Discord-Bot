@@ -37,12 +37,19 @@ class EmbedFix(commands.Cog):
                 "emoji": "🎬",
                 "name": "Instagram Reel"
             },
-            "tiktok": {
+            "tiktok_short": {
                 "patterns": [
-                    r"https?://(?:www|vm|m)\.tiktok\.com/t/([^/]+)/?",
-                    r"https?://(?:www|vm|m)\.tiktok\.com/@[\w.-]+/video/(\d+)",
+                    r"https?://(?:www|vm|m)\.tiktok\.com/(?:t/)?([\w]+)/?$",
                 ],
-                "alternative_template": "https://tnktok.com/t/{}",
+                "alternative_template": "https://vxtiktok.com/t/{}",
+                "emoji": "🎵",
+                "name": "TikTok"
+            },
+            "tiktok_video": {
+                "patterns": [
+                    r"https?://(?:www|vm|m)\.tiktok\.com/@[\w.\-]+/video/(\d+)",
+                ],
+                "alternative_template": "https://vxtiktok.com/video/{}",
                 "emoji": "🎵",
                 "name": "TikTok"
             },
